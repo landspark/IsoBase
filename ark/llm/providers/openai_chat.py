@@ -1,6 +1,6 @@
 #! python3
 # -*- encoding: utf-8 -*-
-"""OpenAI Chat Completion compatible interface with tool calling and history support.
+"""OpenAI Chat Completion client with structured responses and multi-turn tool support.
 
 @File   :   openai_chat.py
 @Created:   2026/06/05 00:34
@@ -11,7 +11,8 @@
 # Here put the import lib.
 
 from typing import Any, List, Dict, Optional, Union, Tuple, Callable
-from json import loads
+import json
+import re
 from inspect import signature
 from PIL import Image as PILImage
 
@@ -26,13 +27,15 @@ from openai import (
 )
 
 from ark.llm.providers.base import BaseLLMClient
+from ark.llm.entities import LLMResponse, TokenUsage
 from ark.llm.tools import FunctionTool
 from ark.core.logger import LOGGER
 from ark.core.image_service import convert_image_to_data_url
 
 class OpenAIChat(BaseLLMClient):
     """
-    Client for OpenAI Chat Completion compatible APIs, supporting history and tools.
+    Optimized client for OpenAI Chat Completion compatible APIs.
+    Supports structured LLMResponse, safe history mutation, and multi-turn tool calling.
     """
 
     def __init__(
@@ -46,226 +49,170 @@ class OpenAIChat(BaseLLMClient):
         tool_function_mapper: Dict[str, Callable] = None,
         tool_function_callable_kwargs: Dict[str, Any] = None,
         conversation_mode: bool = True,
+        max_tool_rounds: int = 5,
         **kwargs: Any
     ):
-        """
-        Initializes the OpenAI Chat client.
-
-        Args:
-            api_key: API key for authentication.
-            base_url: Base URL for the API.
-            default_model: Default model to use.
-            instructions: System instructions to define the agent behavior.
-            messages: Initial conversation history.
-            tools: List of OpenAI-style tool definitions.
-            tool_function_mapper: Map of tool names to Python callables.
-            tool_function_callable_kwargs: Additional kwargs for tool callables.
-            conversation_mode: If True, retains conversation history.
-            **kwargs: Additional parameters for the OpenAI client and chat completions.
-        """
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.default_model = default_model
         self.instructions = instructions
         self.conversation_mode = conversation_mode
+        self.max_tool_rounds = max_tool_rounds
         
-        # Initialize messages
-        if messages:
-            self.messages = messages
-        elif self.instructions:
+        self.messages = messages or []
+        if not self.messages and self.instructions:
             self.messages = [{"role": "system", "content": self.instructions}]
-        else:
-            self.messages = []
 
-        # Initialize tools
-        tools = tools or []
-        tool_function_mapper = tool_function_mapper or {}
-        tool_function_callable_kwargs = tool_function_callable_kwargs or {}
-        
         self.function_tools = [
-            FunctionTool(
-                tool_definition_dict=t, 
-                tool_function_mapper=tool_function_mapper,
-                tool_function_callable_kwargs=tool_function_callable_kwargs
-            ) for t in tools if t.get("type") == "function"
+            FunctionTool(t, tool_function_mapper, tool_function_callable_kwargs)
+            for t in (tools or []) if t.get("type") == "function"
         ]
         self.latest_tool_call_result = {}
 
-        # Filter kwargs for chat completion
         create_params = signature(self.client.chat.completions.create).parameters
         self.openai_args_dict = {k: v for k, v in kwargs.items() if k in create_params}
 
-        LOGGER.info(f"Initialized OpenAIChat (model: {default_model}, conversation_mode: {conversation_mode})")
+        LOGGER.info(f"OpenAIChat initialized (model: {default_model})")
 
     @staticmethod
-    def build_user_message_content(
-        prompt: str,
-        images: Optional[List[PILImage.Image]] = None,
-    ) -> Union[str, List[Dict[str, Any]]]:
-        """Builds message content, supporting multimodal input if images are provided."""
+    def build_user_message_content(prompt: str, images: Optional[List[PILImage.Image]] = None) -> Union[str, List[Dict[str, Any]]]:
         if not images:
             return prompt
-
         content = [{"type": "text", "text": prompt}]
         for img in images:
             if not isinstance(img, PILImage.Image):
-                raise TypeError("Each image must be a PIL.Image.Image instance.")
-            content.append({
-                "type": "image_url",
-                "image_url": {"url": convert_image_to_data_url(img)},
-            })
+                raise TypeError("Images must be PIL instances.")
+            content.append({"type": "image_url", "image_url": {"url": convert_image_to_data_url(img)}})
         return content
 
-    def chat_completion(
-        self, 
-        messages: List[Dict[str, str]], 
-        model: Optional[str] = None,
-        **kwargs: Any
-    ) -> Any:
-        """Low-level call to OpenAI API."""
-        target_model = model or self.default_model
-        merged_kwargs = {**self.openai_args_dict, **kwargs}
-        return self.client.chat.completions.create(
-            model=target_model,
-            messages=messages,
-            **merged_kwargs
+    def _extract_usage(self, usage: Any) -> TokenUsage:
+        if not usage: return TokenUsage()
+        return TokenUsage(
+            input_tokens=getattr(usage, "prompt_tokens", 0),
+            output_tokens=getattr(usage, "completion_tokens", 0),
+            total_tokens=getattr(usage, "total_tokens", 0)
         )
 
-    def ask(
-        self, 
-        prompt: str, 
-        images: Optional[List[PILImage.Image]] = None,
-        stream: bool = True,
-        **kwargs: Any
-    ) -> Tuple[bool, int, str]:
-        """
-        High-level interface for chat, handling history, tools, and streaming.
+    def _parse_completion(self, completion: Any) -> Tuple[str, List[Dict[str, Any]], str, TokenUsage]:
+        choice = completion.choices[0]
+        content = choice.message.content or ""
+        tool_calls = []
+        if choice.message.tool_calls:
+            tool_calls = [
+                {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                for tc in choice.message.tool_calls
+            ]
+        reasoning = getattr(choice.message, "reasoning_content", "")
+        usage = self._extract_usage(completion.usage)
+        return content, tool_calls, reasoning, usage
 
-        Returns:
-            Tuple[bool, int, str]: (is_success, status_code, content)
-        """
+    def _parse_stream(self, stream: Any) -> Tuple[str, List[Dict[str, Any]], str, TokenUsage]:
+        content = ""
+        tool_calls = []
+        reasoning = ""
+        usage = TokenUsage()
+        
+        for chunk in stream:
+            if chunk.usage:
+                usage = self._extract_usage(chunk.usage)
+            if not chunk.choices: continue
+            delta = chunk.choices[0].delta
+            if delta.content: content += delta.content
+            if hasattr(delta, "reasoning_content") and delta.reasoning_content:
+                reasoning += delta.reasoning_content
+            if delta.tool_calls:
+                for tc_chunk in delta.tool_calls:
+                    while len(tool_calls) <= tc_chunk.index:
+                        tool_calls.append({"id": "", "type": "function", "function": {"name": "", "arguments": ""}})
+                    tc = tool_calls[tc_chunk.index]
+                    if tc_chunk.id: tc["id"] = tc_chunk.id
+                    if tc_chunk.function:
+                        if tc_chunk.function.name: tc["function"]["name"] = tc_chunk.function.name
+                        if tc_chunk.function.arguments: tc["function"]["arguments"] += tc_chunk.function.arguments
+        return content, tool_calls, reasoning, usage
+
+    def chat_completion(self, messages: List[Dict[str, str]], model: Optional[str] = None, **kwargs: Any) -> LLMResponse:
+        try:
+            target_model = model or self.default_model
+            args = {**self.openai_args_dict, **kwargs}
+            completion = self.client.chat.completions.create(model=target_model, messages=messages, **args)
+            content, tool_calls, reasoning, usage = self._parse_completion(completion)
+            return LLMResponse(True, 200, content, usage=usage, tool_calls=tool_calls, reasoning_content=reasoning, raw_response=completion)
+        except Exception as e:
+            return LLMResponse(False, 500, f"Error: {e}")
+
+    def ask(self, prompt: str, images: Optional[List[PILImage.Image]] = None, stream: bool = True, **kwargs: Any) -> LLMResponse:
         try:
             user_content = self.build_user_message_content(prompt, images)
             
-            # Manage message history
-            if self.conversation_mode:
-                messages = self.messages.copy()
-            else:
-                messages = []
-                if self.instructions:
-                    messages.append({"role": "system", "content": self.instructions})
+            # Use local messages to prevent state pollution on error
+            current_messages = self.messages.copy() if self.conversation_mode else []
+            if not current_messages and self.instructions:
+                current_messages.append({"role": "system", "content": self.instructions})
+            current_messages.append({"role": "user", "content": user_content})
+
+            tools_defs = [t.tool_definition_dict for t in self.function_tools] if self.function_tools else None
             
-            messages.append({"role": "user", "content": user_content})
-
-            tools_definitions = [t.tool_definition_dict for t in self.function_tools] if self.function_tools else None
-
-            # First Call
-            response_content = ""
-            current_tool_calls = []
+            final_content = ""
+            final_reasoning = ""
+            total_usage = TokenUsage()
             
-            completion_args = {
-                "messages": messages,
-                "model": self.default_model,
-                "tools": tools_definitions,
-                "stream": stream,
-                **self.openai_args_dict,
-                **kwargs
-            }
-
-            if stream:
-                response = self.client.chat.completions.create(**completion_args)
-                for chunk in response:
-                    if not chunk.choices: continue
-                    delta = chunk.choices[0].delta
-                    if delta.content:
-                        response_content += delta.content
-                    if delta.tool_calls:
-                        for tc_chunk in delta.tool_calls:
-                            while len(current_tool_calls) <= tc_chunk.index:
-                                current_tool_calls.append({"id": "", "type": "function", "function": {"name": "", "arguments": ""}})
-                            tc = current_tool_calls[tc_chunk.index]
-                            if tc_chunk.id: tc["id"] = tc_chunk.id
-                            if tc_chunk.function:
-                                if tc_chunk.function.name: tc["function"]["name"] = tc_chunk.function.name
-                                if tc_chunk.function.arguments: tc["function"]["arguments"] += tc_chunk.function.arguments
-            else:
-                response = self.client.chat.completions.create(**completion_args)
-                msg = response.choices[0].message
-                response_content = msg.content or ""
-                if msg.tool_calls:
-                    current_tool_calls = [
-                        {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
-                        for tc in msg.tool_calls
-                    ]
-
-            # Handle Tool Calls
-            if current_tool_calls:
-                messages.append({"role": "assistant", "tool_calls": current_tool_calls})
+            round_idx = 0
+            while round_idx < self.max_tool_rounds:
+                round_idx += 1
+                completion_args = {
+                    "messages": current_messages,
+                    "model": self.default_model,
+                    "tools": tools_defs,
+                    "stream": stream,
+                    **self.openai_args_dict,
+                    **kwargs
+                }
                 
-                for tc in current_tool_calls:
+                response = self.client.chat.completions.create(**completion_args)
+                if stream:
+                    content, tool_calls, reasoning, usage = self._parse_stream(response)
+                else:
+                    content, tool_calls, reasoning, usage = self._parse_completion(response)
+                
+                final_content = content
+                final_reasoning += reasoning
+                total_usage.input_tokens += usage.input_tokens
+                total_usage.output_tokens += usage.output_tokens
+                total_usage.total_tokens += usage.total_tokens
+
+                if not tool_calls:
+                    # Final response obtained
+                    break
+
+                # Handle Tool Calls
+                assistant_msg = {"role": "assistant", "tool_calls": tool_calls}
+                if content: assistant_msg["content"] = content
+                current_messages.append(assistant_msg)
+                
+                for tc in tool_calls:
                     func_name = tc["function"]["name"]
                     tool = next((t for t in self.function_tools if t.name == func_name), None)
-                    
                     if tool:
                         result = tool.execute(tc["function"]["arguments"])
-                        # Logic from legacy: result might be (is_success, value)
-                        if isinstance(result, tuple) and len(result) == 2:
-                            is_success, tool_output = result
-                        else:
-                            is_success, tool_output = True, str(result)
-                        
-                        self.latest_tool_call_result[func_name] = is_success
+                        tool_output = str(result[1] if isinstance(result, tuple) else result)
+                        self.latest_tool_call_result[func_name] = result[0] if isinstance(result, tuple) else True
                     else:
                         tool_output = f"Tool '{func_name}' not found."
                         self.latest_tool_call_result[func_name] = False
                     
-                    messages.append({
-                        "tool_call_id": tc["id"],
-                        "role": "tool",
-                        "name": func_name,
-                        "content": str(tool_output)
-                    })
+                    current_messages.append({"tool_call_id": tc["id"], "role": "tool", "name": func_name, "content": tool_output})
 
-                # Second Call after tools
-                second_response = self.client.chat.completions.create(
-                    messages=messages,
-                    model=self.default_model,
-                    tools=tools_definitions,
-                    stream=stream,
-                    **self.openai_args_dict,
-                    **kwargs
-                )
-                
-                final_content = ""
-                if stream:
-                    for chunk in second_response:
-                        if chunk.choices[0].delta.content:
-                            final_content += chunk.choices[0].delta.content
-                else:
-                    final_content = second_response.choices[0].message.content or ""
-                
-                response_content = final_content
-
-            # Update History
-            if response_content:
-                messages.append({"role": "assistant", "content": response_content})
+            # Loop finished or max rounds reached
+            if final_content:
+                current_messages.append({"role": "assistant", "content": final_content})
             
+            # Commit changes to self.messages only on success
             if self.conversation_mode:
-                self.messages = messages
+                self.messages = current_messages
 
-            return True, 200, response_content
+            return LLMResponse(True, 200, final_content, usage=total_usage, reasoning_content=final_reasoning)
 
-        except RateLimitError:
-            return True, 429, "Rate Limit Error"
-        except BadRequestError as e:
-            return True, 400, f"Bad Request: {e}"
-        except APITimeoutError:
-            return False, 500, "API Timeout"
-        except AuthenticationError:
-            return False, 401, "Authentication Failed"
-        except InternalServerError:
-            return False, 500, "Internal Server Error"
-        except APIError as e:
-            return False, 500, f"API Error: {e}"
         except Exception as e:
-            LOGGER.error(f"Unexpected error: {e}")
-            return False, 500, f"Unexpected error: {e}"
+            LOGGER.error(f"ask failed: {e}")
+            status = 400 if isinstance(e, BadRequestError) else 500
+            return LLMResponse(False, status, f"Unexpected error: {e}")

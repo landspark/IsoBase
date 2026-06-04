@@ -95,6 +95,3 @@ class FunctionTool():
     def __str__(self):
         callable_name = self.mapped_callable.__name__ if self.mapped_callable else "None"
         return f"FunctionTool(name={self.name}, mapped_callable={callable_name})"
-    
-    def __repr__(self):
-        return self.__str__()

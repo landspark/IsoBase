@@ -8,9 +8,9 @@
 @Contact:   https://github.com/SwordJack/
 """
 
-# Here put the import lib.
 from abc import ABC, abstractmethod
 from typing import Any, List, Dict, Optional
+from ark.llm.entities import LLMResponse
 
 class BaseLLMClient(ABC):
     """
@@ -24,16 +24,16 @@ class BaseLLMClient(ABC):
         messages: List[Dict[str, str]], 
         model: Optional[str] = None,
         **kwargs: Any
-    ) -> Any:
+    ) -> LLMResponse:
         """
         Sends a chat completion request to the LLM provider.
 
         Args:
-            messages (List[Dict[str, str]]): A list of message objects representing the conversation history.
-            model (Optional[str]): The model to use for completion.
-            **kwargs: Additional provider-specific parameters (e.g., temperature, max_tokens).
+            messages (List[Dict[str, str]]): A list of message objects.
+            model (Optional[str]): The model to use.
+            **kwargs: Additional parameters.
 
         Returns:
-            Any: The response from the LLM provider.
+            LLMResponse: Structured response object.
         """
         pass
