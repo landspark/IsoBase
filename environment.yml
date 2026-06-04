@@ -5,12 +5,21 @@ channels:
 dependencies:
   - _libgcc_mutex=0.1=main
   - _openmp_mutex=5.1=1_gnu
+  - annotated-types=0.6.0=py313h06a4308_1
+  - anyio=4.12.1=py313h06a4308_0
   - bzip2=1.0.8=h5eee18b_6
-  - ca-certificates=2025.2.25=h06a4308_0
+  - ca-certificates=2026.5.14=h06a4308_0
+  - certifi=2026.5.20=py313h06a4308_0
   - colorlog=6.9.0=pyh707e725_1
+  - distro=1.9.0=py313h06a4308_0
   - expat=2.6.4=h6a678d5_0
   - greenlet=3.1.1=py313h6a678d5_0
+  - h11=0.16.0=py313h06a4308_1
+  - httpcore=1.0.9=py313h06a4308_0
+  - httpx=0.28.1=py313h06a4308_1
+  - idna=3.18=py313h06a4308_0
   - iniconfig=1.1.1=pyhd3eb1b0_0
+  - jiter=0.12.0=py313h498d7c9_0
   - ld_impl_linux-64=2.40=h12ee557_0
   - libffi=3.4.4=h6a678d5_1
   - libgcc=14.2.0=h767d61c_2
@@ -20,21 +29,27 @@ dependencies:
   - libstdcxx-ng=11.2.0=h1234567_1
   - libuuid=1.41.5=h5eee18b_0
   - ncurses=6.4=h6a678d5_0
-  - openssl=3.4.1=h7b32b05_0
+  - openai=2.30.0=py313h06a4308_0
+  - openssl=3.5.6=h1b28b03_0
   - packaging=24.2=py313h06a4308_0
   - phonenumbers=8.13.49=py313h06a4308_0
   - pip=25.0=py313h06a4308_0
   - pluggy=1.5.0=py313h06a4308_0
   - pycountry=24.6.1=pyhd8ed1ab_0
+  - pydantic=2.11.9=py313h06a4308_0
+  - pydantic-core=2.33.2=py313hc6f7160_0
   - pytest=8.3.4=py313h06a4308_0
   - python=3.13.2=hf623796_100_cp313
   - python_abi=3.13=0_cp313
   - readline=8.2=h5eee18b_0
   - setuptools=75.8.0=py313h06a4308_0
+  - sniffio=1.3.1=py313h06a4308_0
   - sqlalchemy=2.0.37=py313h00e1ef3_0
   - sqlite=3.45.3=h5eee18b_0
   - tk=8.6.14=h39e8969_0
+  - tqdm=4.67.3=py313h7040dfc_1
   - typing-extensions=4.12.2=py313h06a4308_0
+  - typing-inspection=0.4.2=py313h06a4308_0
   - typing_extensions=4.12.2=py313h06a4308_0
   - tzdata=2025a=h04d1e81_0
   - wheel=0.45.1=py313h06a4308_0
