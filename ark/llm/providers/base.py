@@ -9,7 +9,7 @@
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 from PIL import Image as PILImage
 
@@ -28,7 +28,7 @@ class BaseLLMClient(ABC):
                         messages: List[Dict[str, str]],
                         model: Optional[str] = None,
                         **kwargs: Any) -> LLMResponse:
-        """Sends a chat completion request to the LLM provider.
+        """Sends a non-streaming chat completion request.
 
         Args:
             messages: A list of message objects representing the conversation.
@@ -40,9 +40,26 @@ class BaseLLMClient(ABC):
         """
         pass
 
-    @staticmethod
+    @abstractmethod
+    def chat_completion_stream(self,
+                               messages: List[Dict[str, str]],
+                               model: Optional[str] = None,
+                               **kwargs: Any) -> Iterator[LLMResponse]:
+        """Sends a streaming chat completion request.
+
+        Args:
+            messages: A list of message objects representing the conversation.
+            model: The specific model ID to use for this request.
+            **kwargs: Additional provider-specific parameters.
+
+        Yields:
+            LLMResponse objects containing incremental content chunks.
+        """
+        pass
+
+    @classmethod
     def build_user_message_content(
-        prompt: str,
+        cls, prompt: str,
         images: Optional[List[PILImage.Image]] = None
     ) -> Union[str, List[Dict[str, Any]]]:
         """Builds user message content, supporting multimodal input.
