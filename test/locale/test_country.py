@@ -1,6 +1,7 @@
 #! python3
 # -*- coding: utf-8 -*-
-"""
+"""Tests for country and language utility functions.
+
 @File   : test_country.py
 @Created: 2025/04/24 02:05
 @Author : SwordJack
@@ -12,7 +13,9 @@ from ark.locale.country import (
     get_language_by_alpha2,
 )
 
+
 def test_get_country():
+    """Tests the get_country_by_alpha2 function."""
     country_1 = get_country_by_alpha2("cn")
     country_2 = get_country_by_alpha2("CN")
     assert country_1.name == "China"
@@ -24,7 +27,9 @@ def test_get_country():
     assert country_4.name == "United Kingdom"
     assert country_5 is None
 
+
 def test_get_language():
+    """Tests the get_language_by_alpha2 function."""
     lang_1 = get_language_by_alpha2("zh")
     lang_2 = get_language_by_alpha2("zh")
     assert lang_1.name == "Chinese"

@@ -1,6 +1,7 @@
 #! python3
 # -*- coding: utf-8 -*-
-"""
+"""Tests for phone number parsing and formatting.
+
 @File   : test_phone.py
 @Created: 2025/04/24 03:14
 @Author : SwordJack
@@ -15,7 +16,9 @@ from ark.locale.phone import (
     format_rfc3966,
 )
 
+
 def test_parse_phone_number():
+    """Tests phone number parsing logic."""
     phone_obj_1 = parse_phone_number("13524678980")
     assert phone_obj_1.country_code == 86
     phone_obj_2 = parse_phone_number("+13106159797")
@@ -25,11 +28,21 @@ def test_parse_phone_number():
     phone_obj_3 = parse_phone_number("135246789830")
     assert phone_obj_3 is None
 
+
 def test_format():
+    """Tests various phone number formatting methods."""
     phone_obj_1 = parse_phone_number("13524678980")
     assert " " not in format_e164(phone_obj_1)
-    assert " " in format_international(phone_obj_1) and "+" in format_international(phone_obj_1)
-    assert " " in format_national(phone_obj_1) and "+" not in format_national(phone_obj_1)
-    assert " " not in format_rfc3966(phone_obj_1) and "-" in format_rfc3966(phone_obj_1)
+    assert (
+        " " in format_international(phone_obj_1)
+        and "+" in format_international(phone_obj_1)
+    )
+    assert (
+        " " in format_national(phone_obj_1)
+        and "+" not in format_national(phone_obj_1)
+    )
+    assert " " not in format_rfc3966(phone_obj_1) and "-" in format_rfc3966(
+        phone_obj_1
+    )
     phone_obj_2 = parse_phone_number("02128923111")
     assert " " not in format_e164(phone_obj_2)
