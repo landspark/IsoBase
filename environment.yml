@@ -7,34 +7,62 @@ dependencies:
   - _openmp_mutex=5.1=1_gnu
   - annotated-types=0.6.0=py313h06a4308_1
   - anyio=4.12.1=py313h06a4308_0
+  - aom=3.13.2=h664349e_0
   - bzip2=1.0.8=h5eee18b_6
   - ca-certificates=2026.5.14=h06a4308_0
+  - cairo=1.18.4=h44eff21_0
   - certifi=2026.5.20=py313h06a4308_0
   - colorlog=6.9.0=pyh707e725_1
+  - dav1d=1.5.3=h3e43c27_0
   - distro=1.9.0=py313h06a4308_0
   - expat=2.6.4=h6a678d5_0
+  - fontconfig=2.14.1=h55d465d_3
+  - freetype=2.14.1=hf5b9546_0
+  - fribidi=1.0.16=h10f3c28_1
+  - graphite2=1.3.14=h295c915_1
   - greenlet=3.1.1=py313h6a678d5_0
   - h11=0.16.0=py313h06a4308_1
+  - harfbuzz=12.3.0=h79d275a_1
   - httpcore=1.0.9=py313h06a4308_0
   - httpx=0.28.1=py313h06a4308_1
+  - icu=73.1=h6a678d5_0
   - idna=3.18=py313h06a4308_0
   - iniconfig=1.1.1=pyhd3eb1b0_0
   - jiter=0.12.0=py313h498d7c9_0
+  - jpeg=9f=h5ce9db8_0
+  - lcms2=2.19=he283960_0
   - ld_impl_linux-64=2.40=h12ee557_0
+  - lerc=4.1.0=h7354ed3_2
+  - libavif=1.3.0=h2b90b00_1
+  - libdeflate=1.22=h5eee18b_0
   - libffi=3.4.4=h6a678d5_1
   - libgcc=14.2.0=h767d61c_2
   - libgcc-ng=14.2.0=h69a702a_2
+  - libglib=2.86.3=h8b17d9a_0
   - libgomp=14.2.0=h767d61c_2
+  - libiconv=1.18=h75a1612_0
   - libmpdec=4.0.0=h5eee18b_0
+  - libopenjpeg=2.5.4=hee96239_1
+  - libpng=1.6.54=hee55ce4_0
+  - libstdcxx=14.2.0=h8f9b012_2
   - libstdcxx-ng=11.2.0=h1234567_1
+  - libtiff=4.7.1=h029b1ac_0
   - libuuid=1.41.5=h5eee18b_0
+  - libwebp-base=1.6.0=hb7bb969_0
+  - libxcb=1.17.0=h9b100fa_0
+  - libxml2=2.13.9=h2c43086_0
+  - lz4-c=1.9.4=h6a678d5_1
   - ncurses=6.4=h6a678d5_0
   - openai=2.30.0=py313h06a4308_0
   - openssl=3.5.6=h1b28b03_0
   - packaging=24.2=py313h06a4308_0
+  - pcre2=10.46=hf426167_0
   - phonenumbers=8.13.49=py313h06a4308_0
+  - pillow=12.1.0=py313hd9fd23a_0
   - pip=25.0=py313h06a4308_0
+  - pixman=0.46.4=h7934f7d_0
   - pluggy=1.5.0=py313h06a4308_0
+  - pthread-stubs=0.3=h0ce48e5_1
   - pycountry=24.6.1=pyhd8ed1ab_0
   - pydantic=2.11.9=py313h06a4308_0
   - pydantic-core=2.33.2=py313hc6f7160_0
@@ -53,5 +81,12 @@ dependencies:
   - typing_extensions=4.12.2=py313h06a4308_0
   - tzdata=2025a=h04d1e81_0
   - wheel=0.45.1=py313h06a4308_0
+  - xorg-libx11=1.8.12=h9b100fa_1
+  - xorg-libxau=1.0.12=h9b100fa_0
+  - xorg-libxdmcp=1.1.5=h9b100fa_0
+  - xorg-libxext=1.3.6=h9b100fa_0
+  - xorg-libxrender=0.9.12=h9b100fa_0
+  - xorg-xorgproto=2024.1=h5eee18b_1
   - xz=5.6.4=h5eee18b_1
   - zlib=1.2.13=h5eee18b_1
+  - zstd=1.5.6=hc292b87_0
