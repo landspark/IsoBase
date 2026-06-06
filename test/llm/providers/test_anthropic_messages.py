@@ -11,6 +11,15 @@
 from unittest.mock import MagicMock, patch
 import pytest
 from PIL import Image
+from anthropic.types import (
+    Message,
+    RawContentBlockDeltaEvent,
+    RawContentBlockStartEvent,
+    RawContentBlockStopEvent,
+    RawMessageDeltaEvent,
+    RawMessageStartEvent,
+    RawMessageStopEvent,
+)
 from ark.llm.providers.anthropic_messages import AnthropicMessages
 from ark.llm import LLMResponse
 from ark.llm.tools import FunctionTool, ToolSet
@@ -61,24 +70,55 @@ def _message(content, input_tokens=0, output_tokens=0):
     return m
 
 
-def _delta_event(delta_type, **fields):
-    """Builds a mock content_block_delta stream event."""
-    e = MagicMock()
-    e.type = "content_block_delta"
-    e.delta = MagicMock(type=delta_type, **fields)
-    return e
+def _start_event(content=None, input_tokens=10):
+    """Builds a real message_start event.
+
+    ``content`` defaults to None to mirror the Anthropic-*compatible* gateways
+    that send ``message.content: null`` — the framing that crashed the SDK's
+    stream accumulator. We feed real event models (not mocks) so the test
+    exercises the actual normalization + ``accumulate_event`` path.
+    """
+    message = Message.construct(
+        id="m1", type="message", role="assistant", model="x",
+        content=content, stop_reason=None, stop_sequence=None,
+        usage={"input_tokens": input_tokens, "output_tokens": 0})
+    return RawMessageStartEvent.construct(type="message_start", message=message)
 
 
-def _set_stream(mock_instance, events, final_message):
-    """Wires client.messages.stream() to a context manager mock."""
-    stream_obj = MagicMock()
-    stream_obj.__iter__.return_value = iter(events)
-    stream_obj.get_final_message.return_value = final_message
+def _block_start_event(index, content_block):
+    """Builds a real content_block_start event for the given block dict."""
+    return RawContentBlockStartEvent.construct(
+        type="content_block_start", index=index, content_block=content_block)
 
-    cm = MagicMock()
-    cm.__enter__.return_value = stream_obj
-    cm.__exit__.return_value = False
-    mock_instance.messages.stream.return_value = cm
+
+def _delta_event(index, delta):
+    """Builds a real content_block_delta event from a delta dict."""
+    return RawContentBlockDeltaEvent.construct(
+        type="content_block_delta", index=index, delta=delta)
+
+
+def _block_stop_event(index):
+    """Builds a real content_block_stop event."""
+    return RawContentBlockStopEvent.construct(
+        type="content_block_stop", index=index)
+
+
+def _message_delta_event(output_tokens):
+    """Builds a real message_delta event carrying final output token usage."""
+    return RawMessageDeltaEvent.construct(
+        type="message_delta",
+        delta={"stop_reason": "end_turn", "stop_sequence": None},
+        usage={"output_tokens": output_tokens})
+
+
+def _stop_event():
+    """Builds a real message_stop event."""
+    return RawMessageStopEvent.construct(type="message_stop")
+
+
+def _set_stream(mock_instance, events):
+    """Wires client.messages.create(stream=True) to yield raw events."""
+    mock_instance.messages.create.return_value = iter(events)
 
 
 # --- Schema conversion (provider-neutral tool format) -----------------------
@@ -215,14 +255,23 @@ def test_ask_thinking_into_reasoning(mock_anthropic):
 
 
 def test_ask_stream_success(mock_anthropic):
-    """Streaming ask yields incremental text then a final usage summary."""
+    """Streaming ask yields incremental text from raw events.
+
+    The message_start event carries ``content=None`` on purpose: this is the
+    compatible-gateway framing that crashed the SDK's high-level accumulator,
+    so the test pins that we now consume raw events and survive it.
+    """
     mock_instance = mock_anthropic.return_value
     events = [
-        _delta_event("text_delta", text="Hel"),
-        _delta_event("text_delta", text="lo"),
+        _start_event(content=None),
+        _block_start_event(0, {"type": "text", "text": ""}),
+        _delta_event(0, {"type": "text_delta", "text": "Hel"}),
+        _delta_event(0, {"type": "text_delta", "text": "lo"}),
+        _block_stop_event(0),
+        _message_delta_event(output_tokens=5),
+        _stop_event(),
     ]
-    final = _message([_text_block("Hello")], input_tokens=10, output_tokens=5)
-    _set_stream(mock_instance, events, final)
+    _set_stream(mock_instance, events)
 
     client = AnthropicMessages(api_key="test-key")
     chunks = list(client.ask("Hi", stream=True))
@@ -230,6 +279,53 @@ def test_ask_stream_success(mock_anthropic):
     text_chunks = [c for c in chunks if c.content]
     assert "".join(c.content for c in text_chunks) == "Hello"
     assert len(client.messages) == 2
+
+
+def test_ask_stream_tool_call(mock_anthropic):
+    """Streaming tool_use is reconstructed from raw events and executed.
+
+    Verifies tool_use input is rebuilt from input_json_delta fragments (the
+    raw-event path) and that the tool round runs to a final streamed answer.
+    """
+    def tool_a(x):
+        return True, f"Done {x}"
+
+    tool_def = {
+        "type": "function",
+        "function": {"name": "tool_a", "parameters": {"type": "object", "properties": {"x": {"type": "integer"}}}},
+    }
+    client = AnthropicMessages(api_key="test-key", tools=[tool_def],
+                               tool_function_mapper={"tool_a": tool_a})
+    mock_instance = mock_anthropic.return_value
+
+    # Round 1: a tool_use block whose input streams in as partial JSON; the SDK
+    # accumulator reassembles it (we don't hand-parse partial_json ourselves).
+    round1 = [
+        _start_event(content=None),
+        _block_start_event(0, {"type": "tool_use", "id": "tu1",
+                               "name": "tool_a", "input": {}}),
+        _delta_event(0, {"type": "input_json_delta", "partial_json": '{"x":'}),
+        _delta_event(0, {"type": "input_json_delta", "partial_json": ' 1}'}),
+        _block_stop_event(0),
+        _message_delta_event(output_tokens=2),
+        _stop_event(),
+    ]
+    # Round 2: final text answer.
+    round2 = [
+        _start_event(content=None),
+        _block_start_event(0, {"type": "text", "text": ""}),
+        _delta_event(0, {"type": "text_delta", "text": "Done"}),
+        _block_stop_event(0),
+        _message_delta_event(output_tokens=2),
+        _stop_event(),
+    ]
+    mock_instance.messages.create.side_effect = [iter(round1), iter(round2)]
+
+    chunks = list(client.ask("Run tool", stream=True))
+
+    assert "".join(c.content for c in chunks if c.content) == "Done"
+    assert client.latest_tool_call_result["tool_a"] is True
+    assert mock_instance.messages.create.call_count == 2
 
 
 def test_multi_turn_tool(mock_anthropic):

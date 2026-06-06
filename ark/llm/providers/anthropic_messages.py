@@ -191,20 +191,43 @@ class AnthropicMessages(BaseLLMClient):
     def chat_completion(self,
             messages: List[Dict[str, Any]],
             model: Optional[str] = None,
+            max_tokens: Optional[int] = None,
+            system: Optional[str] = None,
+            tools: Optional[List[Dict[str, Any]]] = None,
+            thinking: Optional[Dict[str, Any]] = None,
             **kwargs: Any
         ) -> LLMResponse:
         """Sends a single non-streaming Messages request.
 
+        Top-level Anthropic parameters are passed explicitly (callers decide
+        what to send) rather than auto-injected from ``self`` — this keeps the
+        method a pure atomic call, matching ``OpenAIChat.chat_completion``. The
+        ask loops supply ``system`` / ``tools`` / ``thinking`` from the client's
+        configuration.
+
         Args:
             messages: Conversation context (Anthropic message format).
-            model: Specific model ID to use.
+            model: Specific model ID to use (defaults to the client default).
+            max_tokens: Max output tokens (defaults to the client default).
+            system: Top-level system instructions; omitted from the request
+                when None.
+            tools: Anthropic-format tool schemas; omitted when None.
+            thinking: Extended-thinking config; omitted when None.
             **kwargs: Extra parameters for the API.
 
         Returns:
             An LLMResponse containing the model's output.
         """
         try:
-            request_args = self.__build_request_args(model, **kwargs)
+            # Resolve client-level defaults here, at the public entry point, so
+            # a direct call (no ask loop) still gets a model and the mandatory
+            # max_tokens. __build_request_args assembles the rest; we stamp these
+            # two in as authoritative (overriding any stray copy in kwargs).
+            request_args = self.__build_request_args(
+                system, tools, thinking, **kwargs)
+            request_args["model"] = model or self.default_model
+            request_args["max_tokens"] = (
+                max_tokens if max_tokens is not None else self.max_tokens)
             message = self.client.messages.create(messages=messages,
                                                   **request_args)
             content, tool_calls, reasoning = self.__parse_content(
@@ -221,20 +244,37 @@ class AnthropicMessages(BaseLLMClient):
 
     def chat_completion_stream(
             self, messages: List[Dict[str, Any]],
-            model: Optional[str] = None, **kwargs: Any
+            model: Optional[str] = None,
+            max_tokens: Optional[int] = None,
+            system: Optional[str] = None,
+            tools: Optional[List[Dict[str, Any]]] = None,
+            thinking: Optional[Dict[str, Any]] = None,
+            **kwargs: Any
         ) -> Iterator[LLMResponse]:
         """Sends a streaming Messages request.
 
+        Top-level parameters are passed explicitly (see ``chat_completion``).
+
         Args:
             messages: Conversation context (Anthropic message format).
-            model: Specific model ID to use.
+            model: Specific model ID to use (defaults to the client default).
+            max_tokens: Max output tokens (defaults to the client default).
+            system: Top-level system instructions; omitted when None.
+            tools: Anthropic-format tool schemas; omitted when None.
+            thinking: Extended-thinking config; omitted when None.
             **kwargs: Extra parameters for the API.
 
         Yields:
             LLMResponse objects containing incremental chunks, then a final
             summary carrying aggregated tool calls and usage.
         """
-        request_args = self.__build_request_args(model, **kwargs)
+        # Resolve client-level defaults here, at the public entry point (see
+        # chat_completion). __build_request_args assembles the rest; we stamp
+        # model/max_tokens in as authoritative (overriding any stray in kwargs).
+        request_args = self.__build_request_args(system, tools, thinking, **kwargs)
+        request_args["model"] = model or self.default_model
+        request_args["max_tokens"] = (
+            max_tokens if max_tokens is not None else self.max_tokens)
 
         # We drive the RAW event iterator via ``messages.create(stream=True)``
         # rather than the SDK's high-level ``messages.stream()`` helper, but we
@@ -325,6 +365,11 @@ class AnthropicMessages(BaseLLMClient):
         try:
             user_content = self.build_user_message_content(prompt, images)
             current_messages = self.__prepare_messages(user_content)
+            # Resolve the client's configured request shape once, then pass it
+            # explicitly into each chat_completion call (parity with OpenAIChat).
+            tools_defs = (self.tool_set.get_anthropic_schema()
+                          if self.tool_set else None)
+            system = self.instructions or None
 
             total_usage = TokenUsage()
             final_content = ""
@@ -334,6 +379,9 @@ class AnthropicMessages(BaseLLMClient):
             while round_idx < self.max_tool_rounds:
                 round_idx += 1
                 response = self.chat_completion(messages=current_messages,
+                                               system=system,
+                                               tools=tools_defs,
+                                               thinking=self.thinking,
                                                **kwargs)
                 if not response.success:
                     return response
@@ -397,6 +445,11 @@ class AnthropicMessages(BaseLLMClient):
         try:
             user_content = self.build_user_message_content(prompt, images)
             current_messages = self.__prepare_messages(user_content)
+            # Resolve the client's configured request shape once, then pass it
+            # explicitly into each stream call (parity with OpenAIChat).
+            tools_defs = (self.tool_set.get_anthropic_schema()
+                          if self.tool_set else None)
+            system = self.instructions or None
 
             total_usage = TokenUsage()
             final_content = ""
@@ -411,7 +464,8 @@ class AnthropicMessages(BaseLLMClient):
                 final_message = None
 
                 for chunk_resp in self.chat_completion_stream(
-                        messages=current_messages, **kwargs):
+                        messages=current_messages, system=system,
+                        tools=tools_defs, thinking=self.thinking, **kwargs):
 
                     if chunk_resp.tool_calls:
                         tool_calls = chunk_resp.tool_calls
@@ -463,28 +517,36 @@ class AnthropicMessages(BaseLLMClient):
         except Exception as e:
             yield self.__handle_ask_exception(e)
 
-    def __build_request_args(self, model: Optional[str],
+    def __build_request_args(self, system: Optional[str] = None,
+                             tools: Optional[List[Dict[str, Any]]] = None,
+                             thinking: Optional[Dict[str, Any]] = None,
                              **kwargs: Any) -> Dict[str, Any]:
-        """Assembles the keyword arguments for a Messages API call.
+        """Assembles the optional/merged keyword arguments for a Messages call.
+
+        ``model`` and ``max_tokens`` are resolved and stamped in by the public
+        entry points (``chat_completion`` / ``chat_completion_stream``), so they
+        are intentionally absent here. ``system`` / ``tools`` / ``thinking`` are
+        included **only when not None**: the SDK forwards an explicit ``None`` as
+        ``null`` in the request body (it strips its own ``NOT_GIVEN`` sentinel,
+        not ``None``), and some compatible gateways reject a ``null`` here.
 
         Args:
-            model: Specific model ID, or None to use the default.
+            system: Top-level system instructions (omitted when None).
+            tools: Anthropic-format tool schemas (omitted when None).
+            thinking: Extended-thinking config (omitted when None).
             **kwargs: Per-call overrides merged over the client defaults.
 
         Returns:
-            A dict of API arguments (model, max_tokens, optional system/tools/
-            thinking, plus filtered defaults and overrides).
+            A dict of API arguments (without model/max_tokens, which the caller
+            stamps in afterward).
         """
-        args: Dict[str, Any] = {
-            "model": model or self.default_model,
-            "max_tokens": self.max_tokens,
-        }
-        if self.instructions:
-            args["system"] = self.instructions
-        if self.tool_set:
-            args["tools"] = self.tool_set.get_anthropic_schema()
-        if self.thinking:
-            args["thinking"] = self.thinking
+        args: Dict[str, Any] = {}
+        if system is not None:
+            args["system"] = system
+        if tools is not None:
+            args["tools"] = tools
+        if thinking is not None:
+            args["thinking"] = thinking
         args.update(self.anthropic_args_dict)
         args.update(kwargs)
         return args
