@@ -1,13 +1,5 @@
 #! python3
 # -*- encoding: utf-8 -*-
-"""
-@File   :   run_live.py
-@Created:   2026/06/07 01:00
-@Author :   SwordJack
-@Contact:   https://github.com/SwordJack/
-"""
-
-# Here put the import lib.
 """Manual live smoke test for the LLM providers against real APIs.
 
 This script is intentionally **not** collected by pytest (filename does not
@@ -32,11 +24,12 @@ Expected .env variables (see .env.example):
     ANTHROPIC_MESSAGES_BASE_URL / ANTHROPIC_MESSAGES_API_KEY / ANTHROPIC_MESSAGES_MODEL
 
 @File   :   run_live.py
-@Created:   2026/06/06 00:00
+@Created:   2026/06/07 01:00
 @Author :   SwordJack
 @Contact:   https://github.com/SwordJack/
 """
 
+# Here put the import lib.
 import sys
 from os import path
 from typing import Any, Dict, Optional
