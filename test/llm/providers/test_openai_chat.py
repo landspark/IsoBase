@@ -1,5 +1,13 @@
 #! python3
-# -*- coding: utf-8 -*-
+# -*- encoding: utf-8 -*-
+"""
+@File   :   test_openai_chat.py
+@Created:   2026/06/05 00:13
+@Author :   SwordJack
+@Contact:   https://github.com/SwordJack/
+"""
+
+# Here put the import lib.
 from unittest.mock import MagicMock, patch
 import pytest
 from PIL import Image

@@ -83,7 +83,8 @@ class OpenAIChat(BaseLLMClient):
 
         # Use the centralized ToolSet for management.
         self.tool_set = ToolSet([
-            FunctionTool(t, tool_function_mapper, tool_function_callable_kwargs)
+            FunctionTool.from_openai_schema(
+                t, tool_function_mapper, tool_function_callable_kwargs)
             for t in (tools or []) if t.get("type") == "function"
         ])
         self.latest_tool_call_result = {}
