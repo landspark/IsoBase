@@ -36,6 +36,9 @@ from json import dumps
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 from anthropic import Anthropic, BadRequestError
+# Reuse the SDK's own streaming accumulator instead of hand-rolling block
+# reassembly; see chat_completion_stream for why we drive it ourselves.
+from anthropic.lib.streaming._messages import accumulate_event
 from PIL import Image as PILImage
 from ark.core.image_service import convert_image_to_base64
 from ark.core.logger import LOGGER
@@ -233,37 +236,76 @@ class AnthropicMessages(BaseLLMClient):
         """
         request_args = self.__build_request_args(model, **kwargs)
 
-        with self.client.messages.stream(messages=messages,
-                                         **request_args) as stream:
-            for event in stream:
-                if event.type != "content_block_delta":
-                    continue
+        # We drive the RAW event iterator via ``messages.create(stream=True)``
+        # rather than the SDK's high-level ``messages.stream()`` helper, but we
+        # still reuse the SDK's own accumulator (``accumulate_event``) to build
+        # the final message — we do NOT hand-roll block reassembly.
+        #
+        # Why not ``messages.stream()`` directly: it seeds its snapshot from the
+        # ``message_start`` event's ``message.content``. The official API sends
+        # ``content: []`` there, but some Anthropic-*compatible* gateways send
+        # ``content: null``; the SDK then does ``snapshot.content.append(...)``
+        # on the next ``content_block_start`` and raises ``'NoneType' object has
+        # no attribute 'append'``. That crash is unreachable from the public
+        # ``messages.stream()`` API (no hook to fix the event first).
+        #
+        # We could keep ``messages.stream()`` by monkeypatching the module-level
+        # ``accumulate_event`` (the bare name it resolves at call time) to fix
+        # the field — that does work. We don't, because it mutates a third-party
+        # module attribute process-wide: every Anthropic stream in the process
+        # (other code, tests) would be rerouted through our patch. Both
+        # approaches couple to the same private ``accumulate_event``, so the
+        # patch buys nothing extra while widening the blast radius from a local
+        # call to a global override.
+        #
+        # So we take the raw events, normalize just that one offending field,
+        # and feed each event through the SDK's accumulator. Live text/thinking
+        # deltas are yielded as they arrive; the accumulated snapshot is parsed
+        # with the same ``__parse_content`` / ``__extract_usage`` the
+        # non-streaming path uses.
+        stream = self.client.messages.create(messages=messages, stream=True,
+                                             **request_args)
 
+        snapshot = None
+        for event in stream:
+            # Normalize the lone non-conformant field before the SDK accumulator
+            # sees it: a compatible gateway may send message_start.content=null.
+            if getattr(event, "type", "") == "message_start":
+                message = getattr(event, "message", None)
+                if message is not None and getattr(message, "content", None) is None:
+                    message.content = []
+
+            snapshot = accumulate_event(event=event, current_snapshot=snapshot)
+
+            # Surface incremental text / thinking to the caller as they stream.
+            if getattr(event, "type", "") == "content_block_delta":
                 delta = event.delta
-                delta_type = getattr(delta, "type", "")
-                if delta_type == "text_delta":
+                dtype = getattr(delta, "type", "")
+                if dtype == "text_delta":
                     yield LLMResponse(
                         success=True, status_code=200,
                         content=delta.text, raw_response=event)
-                elif delta_type == "thinking_delta":
+                elif dtype == "thinking_delta":
                     yield LLMResponse(
                         success=True, status_code=200,
                         content="", reasoning_content=delta.thinking,
                         raw_response=event)
 
-            # Aggregate the full message for tool logic and usage.
-            final_message = stream.get_final_message()
+        # Parse the SDK-accumulated snapshot with the shared (non-streaming)
+        # helpers — tool_use inputs were reassembled from partial_json by the
+        # accumulator, so there is nothing bespoke to rebuild here.
+        _, tool_calls, _ = self.__parse_content(snapshot.content if snapshot else [])
+        usage = self.__extract_usage(snapshot.usage if snapshot else None)
 
-        _, tool_calls, _ = self.__parse_content(final_message.content)
-        usage = self.__extract_usage(final_message.usage)
-
-        # Final yield with empty content to avoid duplicating streamed text,
-        # carrying the aggregated tool calls, usage, and raw message.
+        # Final yield: empty content (text already streamed) carrying aggregated
+        # tool calls + usage. ``raw_response`` is the accumulated Message snapshot
+        # so __ask_loop_stream can echo the assistant turn verbatim on a tool
+        # round (its content blocks preserve thinking signatures and tool_use).
         yield LLMResponse(
             success=True, status_code=200,
             content="", tool_calls=tool_calls,
             reasoning_content="", usage=usage,
-            raw_response=final_message
+            raw_response=snapshot
         )
 
     def __ask_loop(self,
@@ -377,9 +419,10 @@ class AnthropicMessages(BaseLLMClient):
                         total_usage.input_tokens += chunk_resp.usage.input_tokens
                         total_usage.output_tokens += chunk_resp.usage.output_tokens
                         total_usage.total_tokens += chunk_resp.usage.total_tokens
-                    if chunk_resp.raw_response is not None and (
-                            chunk_resp.usage.total_tokens > 0):
-                        # The final summary chunk carries the aggregated message.
+                    # The final summary chunk carries the SDK-accumulated Message
+                    # snapshot in raw_response (delta chunks carry a stream event,
+                    # which has no `.content`); detect it by that attribute.
+                    if hasattr(chunk_resp.raw_response, "content"):
                         final_message = chunk_resp.raw_response
 
                     if chunk_resp.content or chunk_resp.reasoning_content:
@@ -393,8 +436,9 @@ class AnthropicMessages(BaseLLMClient):
                     final_content = current_round_content
                     break
 
-                # Echo the assistant turn back verbatim from the aggregated
-                # message (preserves thinking signatures and tool_use blocks).
+                # Echo the assistant turn back verbatim from the accumulated
+                # snapshot (its content blocks preserve thinking signatures and
+                # tool_use blocks the API requires on the next round).
                 current_messages.append({
                     "role": "assistant",
                     "content": final_message.content
