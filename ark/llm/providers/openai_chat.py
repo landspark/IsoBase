@@ -117,7 +117,7 @@ class OpenAIChat(BaseLLMClient):
         else:
             return self.__ask_loop(prompt, images, **kwargs)
 
-    def chat_completion(self,
+    def generate(self,
             messages: List[Dict[str, str]],
             model: Optional[str] = None,
             **kwargs: Any
@@ -148,7 +148,7 @@ class OpenAIChat(BaseLLMClient):
         except Exception as e:
             return LLMResponse(success=False, status_code=500, content=f"Error: {e}")
 
-    def chat_completion_stream(
+    def generate_stream(
             self, messages: List[Dict[str, str]],
             model: Optional[str] = None, **kwargs: Any
         ) -> Iterator[LLMResponse]:
@@ -258,7 +258,7 @@ class OpenAIChat(BaseLLMClient):
             round_idx = 0
             while round_idx < self.max_tool_rounds:
                 round_idx += 1
-                response = self.chat_completion(messages=current_messages,
+                response = self.generate(messages=current_messages,
                                                tools=tools_defs,
                                                **kwargs)
                 if not response.success:
@@ -336,7 +336,7 @@ class OpenAIChat(BaseLLMClient):
                 current_round_reasoning = ""
 
                 # Iterate through chunks from the streaming completion.
-                for chunk_resp in self.chat_completion_stream(
+                for chunk_resp in self.generate_stream(
                         messages=current_messages, tools=tools_defs, **kwargs):
                     
                     if chunk_resp.tool_calls:

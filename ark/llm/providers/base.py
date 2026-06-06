@@ -24,11 +24,11 @@ class BaseLLMClient(ABC):
     """
 
     @abstractmethod
-    def chat_completion(self,
-                        messages: List[Dict[str, str]],
-                        model: Optional[str] = None,
-                        **kwargs: Any) -> LLMResponse:
-        """Sends a non-streaming chat completion request.
+    def generate(self,
+                 messages: List[Dict[str, str]],
+                 model: Optional[str] = None,
+                 **kwargs: Any) -> LLMResponse:
+        """Sends a non-streaming generation request.
 
         Args:
             messages: A list of message objects representing the conversation.
@@ -41,11 +41,11 @@ class BaseLLMClient(ABC):
         pass
 
     @abstractmethod
-    def chat_completion_stream(self,
-                               messages: List[Dict[str, str]],
-                               model: Optional[str] = None,
-                               **kwargs: Any) -> Iterator[LLMResponse]:
-        """Sends a streaming chat completion request.
+    def generate_stream(self,
+                        messages: List[Dict[str, str]],
+                        model: Optional[str] = None,
+                        **kwargs: Any) -> Iterator[LLMResponse]:
+        """Sends a streaming generation request.
 
         Args:
             messages: A list of message objects representing the conversation.

@@ -208,13 +208,13 @@ def test_init_system_not_in_messages(mock_anthropic):
 
 
 def test_atomic_completion(mock_anthropic):
-    """The atomic chat_completion method parses text and does not touch history."""
+    """The atomic generate method parses text and does not touch history."""
     mock_instance = mock_anthropic.return_value
     mock_instance.messages.create.return_value = _message(
         [_text_block("Atomic Response")], input_tokens=3, output_tokens=2)
 
     client = AnthropicMessages(api_key="test-key")
-    response = client.chat_completion(messages=[{"role": "user", "content": "Hi"}])
+    response = client.generate(messages=[{"role": "user", "content": "Hi"}])
 
     assert response.success is True
     assert response.content == "Atomic Response"

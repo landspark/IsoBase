@@ -5,7 +5,7 @@
 ``AnthropicMessages`` is the concrete provider for the Anthropic Messages API
 (``/v1/messages``) and any Anthropic-compatible gateway (via ``base_url``). It
 mirrors the public surface of :class:`~ark.llm.providers.openai_chat.OpenAIChat`
-(``chat_completion`` / ``chat_completion_stream`` / ``ask`` /
+(``generate`` / ``generate_stream`` / ``ask`` /
 ``build_user_message_content``) and returns the standardized ``LLMResponse``,
 so the two providers are interchangeable.
 
@@ -37,7 +37,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 from anthropic import Anthropic, BadRequestError
 # Reuse the SDK's own streaming accumulator instead of hand-rolling block
-# reassembly; see chat_completion_stream for why we drive it ourselves.
+# reassembly; see generate_stream for why we drive it ourselves.
 from anthropic.lib.streaming._messages import accumulate_event
 from PIL import Image as PILImage
 from ark.core.image_service import convert_image_to_base64
@@ -188,7 +188,7 @@ class AnthropicMessages(BaseLLMClient):
         else:
             return self.__ask_loop(prompt, images, **kwargs)
 
-    def chat_completion(self,
+    def generate(self,
             messages: List[Dict[str, Any]],
             model: Optional[str] = None,
             max_tokens: Optional[int] = None,
@@ -201,7 +201,7 @@ class AnthropicMessages(BaseLLMClient):
 
         Top-level Anthropic parameters are passed explicitly (callers decide
         what to send) rather than auto-injected from ``self`` — this keeps the
-        method a pure atomic call, matching ``OpenAIChat.chat_completion``. The
+        method a pure atomic call, matching ``OpenAIChat.generate``. The
         ask loops supply ``system`` / ``tools`` / ``thinking`` from the client's
         configuration.
 
@@ -242,7 +242,7 @@ class AnthropicMessages(BaseLLMClient):
         except Exception as e:
             return LLMResponse(success=False, status_code=500, content=f"Error: {e}")
 
-    def chat_completion_stream(
+    def generate_stream(
             self, messages: List[Dict[str, Any]],
             model: Optional[str] = None,
             max_tokens: Optional[int] = None,
@@ -253,7 +253,7 @@ class AnthropicMessages(BaseLLMClient):
         ) -> Iterator[LLMResponse]:
         """Sends a streaming Messages request.
 
-        Top-level parameters are passed explicitly (see ``chat_completion``).
+        Top-level parameters are passed explicitly (see ``generate``).
 
         Args:
             messages: Conversation context (Anthropic message format).
@@ -269,7 +269,7 @@ class AnthropicMessages(BaseLLMClient):
             summary carrying aggregated tool calls and usage.
         """
         # Resolve client-level defaults here, at the public entry point (see
-        # chat_completion). __build_request_args assembles the rest; we stamp
+        # generate). __build_request_args assembles the rest; we stamp
         # model/max_tokens in as authoritative (overriding any stray in kwargs).
         request_args = self.__build_request_args(system, tools, thinking, **kwargs)
         request_args["model"] = model or self.default_model
@@ -366,7 +366,7 @@ class AnthropicMessages(BaseLLMClient):
             user_content = self.build_user_message_content(prompt, images)
             current_messages = self.__prepare_messages(user_content)
             # Resolve the client's configured request shape once, then pass it
-            # explicitly into each chat_completion call (parity with OpenAIChat).
+            # explicitly into each generate call (parity with OpenAIChat).
             tools_defs = (self.tool_set.get_anthropic_schema()
                           if self.tool_set else None)
             system = self.instructions or None
@@ -378,7 +378,7 @@ class AnthropicMessages(BaseLLMClient):
             round_idx = 0
             while round_idx < self.max_tool_rounds:
                 round_idx += 1
-                response = self.chat_completion(messages=current_messages,
+                response = self.generate(messages=current_messages,
                                                system=system,
                                                tools=tools_defs,
                                                thinking=self.thinking,
@@ -463,7 +463,7 @@ class AnthropicMessages(BaseLLMClient):
                 current_round_reasoning = ""
                 final_message = None
 
-                for chunk_resp in self.chat_completion_stream(
+                for chunk_resp in self.generate_stream(
                         messages=current_messages, system=system,
                         tools=tools_defs, thinking=self.thinking, **kwargs):
 
@@ -524,7 +524,7 @@ class AnthropicMessages(BaseLLMClient):
         """Assembles the optional/merged keyword arguments for a Messages call.
 
         ``model`` and ``max_tokens`` are resolved and stamped in by the public
-        entry points (``chat_completion`` / ``chat_completion_stream``), so they
+        entry points (``generate`` / ``generate_stream``), so they
         are intentionally absent here. ``system`` / ``tools`` / ``thinking`` are
         included **only when not None**: the SDK forwards an explicit ``None`` as
         ``null`` in the request body (it strips its own ``NOT_GIVEN`` sentinel,

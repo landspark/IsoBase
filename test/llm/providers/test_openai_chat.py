@@ -27,7 +27,7 @@ def test_openai_chat_init(mock_openai_chat):
     assert client.messages[0]["content"] == "System rules"
 
 def test_openai_chat_atomic_completion(mock_openai_chat):
-    """Tests the atomic chat_completion method."""
+    """Tests the atomic generate method."""
     mock_instance = mock_openai_chat.return_value
     m = MagicMock()
     m.choices = [MagicMock(message=MagicMock(content="Atomic Response", tool_calls=None))]
@@ -35,7 +35,7 @@ def test_openai_chat_atomic_completion(mock_openai_chat):
     mock_instance.chat.completions.create.return_value = m
     
     client = OpenAIChat(api_key="test-key")
-    response = client.chat_completion(messages=[{"role": "user", "content": "Hello"}])
+    response = client.generate(messages=[{"role": "user", "content": "Hello"}])
     
     assert response.success is True
     assert response.content == "Atomic Response"
