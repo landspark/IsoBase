@@ -39,24 +39,17 @@ from ark.llm.tools import FunctionTool
 
 ENV_PATH = path.join(path.dirname(__file__), ".env")
 
-def _get_weather(city: str) -> tuple:
-    """Stub weather tool returning a deterministic result."""
+def __get_weather(city: str) -> tuple:
+    """Get the current weather for a city.
+
+    Args:
+        city (str): City name
+    """
     return True, f"It is 22C and sunny in {city}."
 
 
 # A trivial tool used to verify the multi-turn tool-calling loop end to end.
-WEATHER_TOOL = FunctionTool(
-    name="get_weather",
-    description="Get the current weather for a city.",
-    parameters_schema={
-        "type": "object",
-        "properties": {
-            "city": {"type": "string", "description": "City name"},
-        },
-        "required": ["city"],
-    },
-    mapped_callable=_get_weather
-)
+WEATHER_TOOL = FunctionTool(mapped_callable=__get_weather, name="get_weather")
 
 
 def _load_env() -> Dict[str, str]:

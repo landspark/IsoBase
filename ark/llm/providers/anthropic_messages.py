@@ -359,8 +359,7 @@ class AnthropicMessages(BaseLLMClient):
             current_messages = self.__prepare_messages(user_content)
             # Resolve the client's configured request shape once, then pass it
             # explicitly into each generate call (parity with OpenAIChat).
-            tools_defs = (self.tool_set.get_anthropic_schema()
-                          if self.tool_set else None)
+            tools_defs = self.__build_tools_schema()
             system = self.instructions or None
 
             total_usage = TokenUsage()
@@ -450,8 +449,7 @@ class AnthropicMessages(BaseLLMClient):
             current_messages = self.__prepare_messages(user_content)
             # Resolve the client's configured request shape once, then pass it
             # explicitly into each stream call (parity with OpenAIChat).
-            tools_defs = (self.tool_set.get_anthropic_schema()
-                          if self.tool_set else None)
+            tools_defs = self.__build_tools_schema()
             system = self.instructions or None
 
             total_usage = TokenUsage()
@@ -531,6 +529,26 @@ class AnthropicMessages(BaseLLMClient):
 
         except Exception as e:
             yield self.__handle_ask_exception(e)
+
+    def __build_tools_schema(self) -> Optional[List[Dict[str, Any]]]:
+        """Builds tool schemas in Anthropic format.
+
+        Returns:
+            A list of Anthropic-format tool schemas, or None if no tools are defined.
+        """
+        if not self.tool_set or not self.tool_set.tools:
+            return None
+        tools_defs = []
+        for t in self.tool_set.tools:
+            schema = t.parameters_schema.copy()
+            if "type" not in schema:
+                schema["type"] = "object"
+            tools_defs.append({
+                "name": t.name,
+                "description": t.description,
+                "input_schema": schema,
+            })
+        return tools_defs
 
     def __build_request_args(self, system: Optional[str] = None,
                              tools: Optional[List[Dict[str, Any]]] = None,

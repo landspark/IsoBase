@@ -250,8 +250,7 @@ class OpenAIChat(BaseLLMClient):
         try:
             user_content = self.build_user_message_content(prompt, images)
             current_messages = self.__prepare_messages(user_content)
-            tools_defs = (self.tool_set.get_openai_schema()
-                          if self.tool_set else None)
+            tools_defs = self.__build_tools_schema()
 
             total_usage = TokenUsage()
             final_content = ""
@@ -339,8 +338,7 @@ class OpenAIChat(BaseLLMClient):
         try:
             user_content = self.build_user_message_content(prompt, images)
             current_messages = self.__prepare_messages(user_content)
-            tools_defs = (self.tool_set.get_openai_schema()
-                          if self.tool_set else None)
+            tools_defs = self.__build_tools_schema()
 
             total_usage = TokenUsage()
             final_content = ""
@@ -461,6 +459,23 @@ class OpenAIChat(BaseLLMClient):
         reasoning = getattr(choice.message, "reasoning_content", "")
         usage = self.__extract_usage(completion.usage)
         return content, tool_calls, reasoning, usage
+
+    def __build_tools_schema(self) -> Optional[List[Dict[str, Any]]]:
+        """Builds tool schemas in OpenAI function format.
+
+        Returns:
+            A list of OpenAI-format tool schemas, or None if no tools are defined.
+        """
+        if not self.tool_set or not self.tool_set.tools:
+            return None
+        return [{
+            "type": "function",
+            "function": {
+                "name": t.name,
+                "description": t.description,
+                "parameters": t.parameters_schema,
+            }
+        } for t in self.tool_set.tools]
 
     def __prepare_messages(self, user_content: Union[str, List[Dict[str, Any]]]) -> List[Dict[str, str]]:
         """Helper to prepare the message list for ask loops."""

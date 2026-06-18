@@ -120,78 +120,22 @@ def _set_stream(mock_instance, events):
     """Wires client.messages.create(stream=True) to yield raw events."""
     mock_instance.messages.create.return_value = iter(events)
 
-
-# --- Schema conversion (provider-neutral tool format) -----------------------
-
-def test_function_tool_to_anthropic_schema():
-    """OpenAI-shaped tools render to Anthropic's flat schema."""
-    openai_def = {
-        "type": "function",
-        "function": {
-            "name": "tool_a",
-            "description": "does a",
-            "parameters": {
-                "type": "object",
-                "properties": {"x": {"type": "integer"}},
-                "required": ["x"],
-            },
-        },
-    }
-    tool = FunctionTool.from_openai_schema(openai_def)
-    schema = tool.to_anthropic_schema()
-    assert schema["name"] == "tool_a"
-    assert schema["description"] == "does a"
-    assert schema["input_schema"]["type"] == "object"
-    assert schema["input_schema"]["properties"]["x"]["type"] == "integer"
-    assert schema["input_schema"]["required"] == ["x"]
-
-
-def test_anthropic_to_openai_roundtrip():
-    """Anthropic schema ingests and renders back to OpenAI shape."""
-    anthropic_def = {
-        "name": "tool_b",
-        "description": "does b",
-        "input_schema": {
-            "type": "object",
-            "properties": {"y": {"type": "string"}},
-            "required": ["y"],
-        },
-    }
-    tool = FunctionTool.from_anthropic_schema(anthropic_def)
-    openai_schema = tool.to_openai_schema()
-    assert openai_schema["type"] == "function"
-    assert openai_schema["function"]["name"] == "tool_b"
-    assert openai_schema["function"]["parameters"]["properties"]["y"]["type"] == "string"
-
-
-def test_toolset_get_anthropic_schema():
-    """ToolSet exposes the Anthropic schema list."""
-    openai_def = {
-        "type": "function",
-        "function": {"name": "t", "parameters": {"type": "object", "properties": {}}},
-    }
-    ts = ToolSet([FunctionTool.from_openai_schema(openai_def)])
-    schemas = ts.get_anthropic_schema()
-    assert len(schemas) == 1
-    assert schemas[0]["name"] == "t"
-    assert "input_schema" in schemas[0]
-
-
 from ark.llm.entities import ToolCall
 
-def test_execute_tool_calls_anthropic_blocks():
+def test_execute_tool_calls_raw_outputs():
     """Tool execution returns raw outputs now."""
     def tool_a(x):
         return True, f"got {x}"
 
-    openai_def = {
-        "type": "function",
-        "function": {"name": "tool_a", "parameters": {"type": "object", "properties": {"x": {"type": "integer"}}}},
-    }
-    ts = ToolSet([FunctionTool.from_openai_schema(openai_def, {"tool_a": tool_a})])
+    tool_def = FunctionTool(
+        name="tool_a",
+        parameters_schema={"type": "object", "properties": {"x": {"type": "integer"}}},
+        mapped_callable=tool_a
+    )
+    ts = ToolSet([tool_def])
     calls = [ToolCall(id="tu1", name="tool_a", arguments='{"x": 5}')]
 
-    # ToolSet now only returns raw tool outputs. The anthropic method does not exist.
+    # ToolSet now only returns raw tool outputs.
     outputs, results = ts.execute_tool_calls(calls)
 
     assert results["tool_a"] is True

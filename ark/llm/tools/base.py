@@ -17,202 +17,123 @@ tool definition can move between providers without loss.
 """
 
 from json import loads
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+import inspect
+import re
+from typing import Any, Callable, Dict, List, Optional, Tuple, get_type_hints
 
-if TYPE_CHECKING:
-    from ark.llm.entities import ToolCall
+from ark.llm.entities import ToolCall
 
-
-class FunctionToolParameter():
-    """Represents a parameter for a function tool.
-
-    Attributes:
-        key: The technical key/name of the parameter.
-        param_type: The data type of the parameter (e.g., 'string', 'integer').
-        description: A brief description of what the parameter represents.
-        required: Whether the parameter must be provided by the LLM.
-        value: The current value assigned to this parameter.
-    """
-
-    def __init__(self, key: str, param_type: str, description: str,
-                 required: bool):
-        """Initializes a FunctionToolParameter instance."""
-        self.key = key
-        self.param_type = param_type
-        self.description = description
-        self.required = required
-        self.value: Any = None
-
-    @property
-    def name(self) -> str:
-        """Returns the technical name of the parameter."""
-        return self.key
-
-    @name.setter
-    def name(self, value: str):
-        """Sets the technical name of the parameter."""
-        self.key = value
-
-    @staticmethod
-    def parse_function_parameters(
-            parameters_dict: dict) -> List['FunctionToolParameter']:
-        """Parses parameter info from a JSON-Schema parameters object.
-
-        Args:
-            parameters_dict: A JSON-Schema object with ``properties``/``required``.
-
-        Returns:
-            A list of FunctionToolParameter instances.
-        """
-        properties: Dict[str, dict] = parameters_dict.get("properties", {})
-        required_params: list = parameters_dict.get("required", [])
-
-        parameters = []
-        for key, value in properties.items():
-            param_type = value.get("type", "string")
-            description = value.get("description", "")
-            required = (key in required_params)
-            parameters.append(
-                FunctionToolParameter(key=key,
-                                      param_type=param_type,
-                                      description=description,
-                                      required=required))
-
-        return parameters
-
-
-class FunctionTool():
+class FunctionTool:
     """A provider-neutral tool the LLM can call to perform actions.
 
     The neutral core is ``name`` / ``description`` / ``parameters_schema`` (a
-    JSON-Schema object). Vendor wire formats are produced on demand via
-    ``to_openai_schema`` / ``to_anthropic_schema`` and ingested via the
-    ``from_*`` classmethods. Holding the full JSON-Schema object (rather than a
-    flattened parameter list) keeps details such as ``enum`` constraints and
-    nested object types intact across conversions.
+    JSON-Schema object). It also holds the Python ``mapped_callable`` to execute.
 
     Attributes:
         name: The name of the function.
         description: A brief description of the tool's purpose.
-        parameters_schema: The JSON-Schema object describing the inputs (the
-            shared inner shape used by both OpenAI and Anthropic).
+        parameters_schema: The JSON-Schema object describing the inputs.
         mapped_callable: The Python function associated with this tool.
         tool_function_callable_kwargs: Extra kwargs for the mapped callable.
     """
 
     def __init__(self,
-                 name: str,
+                 mapped_callable: Callable,
+                 name: Optional[str] = None,
                  description: str = "",
-                 parameters_schema: Dict[str, Any] = None,
-                 mapped_callable: Optional[Callable] = None,
+                 parameters_schema: Optional[Dict[str, Any]] = None,
                  tool_function_callable_kwargs: Dict[str, Any] = None):
         """Initializes a FunctionTool from neutral fields.
 
+        If ``parameters_schema`` is omitted, this attempts to auto-generate
+        the schema using `inspect.signature` and typing hints. It uses
+        best-effort parsing to extract parameter descriptions from the docstring.
+
         Args:
-            name: The tool/function name.
-            description: A human-readable description of the tool.
-            parameters_schema: The JSON-Schema inputs object (defaults to an
-                empty object schema).
             mapped_callable: The Python callable that backs this tool.
+            name: The tool/function name (defaults to callable's name).
+            description: A human-readable description (defaults to first docstring line).
+            parameters_schema: The JSON-Schema inputs object.
             tool_function_callable_kwargs: Static kwargs to pass to the callable.
         """
-        self.name = name
-        self.description = description
-        self.parameters_schema: Dict[str, Any] = (
-            parameters_schema or {"type": "object", "properties": {}})
         self.mapped_callable = mapped_callable
+        self.name = name or mapped_callable.__name__
+
+        if description:
+            self.description = description
+        elif mapped_callable.__doc__:
+            # Use the first non-empty line of the docstring as the default description
+            lines = [line.strip() for line in mapped_callable.__doc__.split('\n') if line.strip()]
+            self.description = lines[0] if lines else ""
+        else:
+            self.description = ""
+
+        if parameters_schema is not None:
+            self.parameters_schema = parameters_schema
+        else:
+            self.parameters_schema = self.__generate_schema_from_callable(mapped_callable)
+
         self.tool_function_callable_kwargs = tool_function_callable_kwargs or {}
 
-    @property
-    def parameters(self) -> List[FunctionToolParameter]:
-        """Returns the parameters parsed from ``parameters_schema`` on demand."""
-        return FunctionToolParameter.parse_function_parameters(
-            self.parameters_schema)
-
     @classmethod
-    def from_openai_schema(
-            cls,
-            tool_definition_dict: Dict[str, Any],
-            tool_function_mapper: Dict[str, Callable] = None,
-            tool_function_callable_kwargs: Dict[str, Any] = None
-    ) -> 'FunctionTool':
-        """Builds a FunctionTool from an OpenAI-style tool definition.
+    def __generate_schema_from_callable(cls, func: Callable) -> Dict[str, Any]:
+        sig = inspect.signature(func)
+        type_hints = get_type_hints(func)
 
-        Args:
-            tool_definition_dict: OpenAI ``{"type": "function", "function": {...}}``.
-            tool_function_mapper: A map of tool names to Python callables.
-            tool_function_callable_kwargs: Static kwargs to pass to callables.
-
-        Returns:
-            A FunctionTool instance.
-        """
-        function_dict = tool_definition_dict.get("function", {})
-        name = function_dict.get("name", "")
-        return cls(
-            name=name,
-            description=function_dict.get("description", ""),
-            parameters_schema=function_dict.get("parameters"),
-            mapped_callable=(tool_function_mapper or {}).get(name),
-            tool_function_callable_kwargs=tool_function_callable_kwargs,
-        )
-
-    @classmethod
-    def from_anthropic_schema(
-            cls,
-            tool_definition_dict: Dict[str, Any],
-            tool_function_mapper: Dict[str, Callable] = None,
-            tool_function_callable_kwargs: Dict[str, Any] = None
-    ) -> 'FunctionTool':
-        """Builds a FunctionTool from an Anthropic-style tool definition.
-
-        Args:
-            tool_definition_dict: Anthropic ``{"name", "description", "input_schema"}``.
-            tool_function_mapper: A map of tool names to Python callables.
-            tool_function_callable_kwargs: Static kwargs to pass to callables.
-
-        Returns:
-            A FunctionTool instance.
-        """
-        name = tool_definition_dict.get("name", "")
-        return cls(
-            name=name,
-            description=tool_definition_dict.get("description", ""),
-            parameters_schema=tool_definition_dict.get("input_schema"),
-            mapped_callable=(tool_function_mapper or {}).get(name),
-            tool_function_callable_kwargs=tool_function_callable_kwargs,
-        )
-
-    def to_openai_schema(self) -> Dict[str, Any]:
-        """Renders this tool as an OpenAI-style tool definition.
-
-        Returns:
-            An OpenAI ``{"type": "function", "function": {...}}`` dictionary.
-        """
-        return {
-            "type": "function",
-            "function": {
-                "name": self.name,
-                "description": self.description,
-                "parameters": self.parameters_schema,
-            },
+        # Mapping of Python types to JSON Schema types
+        type_mapping = {
+            str: "string", int: "integer", float: "number",
+            bool: "boolean", list: "array", dict: "object", type(None): "null"
         }
 
-    def to_anthropic_schema(self) -> Dict[str, Any]:
-        """Renders this tool as an Anthropic-style tool definition.
+        # Best-effort docstring parameter parsing (Google/Sphinx style)
+        param_descriptions = {}
+        if func.__doc__:
+            # Look for lines like "param_name: description" or "param_name (type): description"
+            # under an "Args:" section.
+            doc_lines = func.__doc__.split('\n')
+            in_args_section = False
+            for line in doc_lines:
+                line = line.strip()
+                if line.startswith("Args:") or line.startswith("Parameters:"):
+                    in_args_section = True
+                    continue
+                if in_args_section:
+                    if not line or line.endswith(":"): # Empty line or next section
+                        # A very crude check to stop parsing args if we hit another section like "Returns:"
+                        if re.match(r"^[A-Z][a-z]+:$", line):
+                            break
+                        continue
 
-        Returns:
-            An Anthropic ``{"name", "description", "input_schema"}`` dictionary.
-            ``input_schema`` always carries ``"type": "object"`` as Anthropic
-            requires.
-        """
-        schema = self.parameters_schema
-        if "type" not in schema:
-            schema = {**schema, "type": "object"}
-        return {
-            "name": self.name,
-            "description": self.description,
-            "input_schema": schema,
-        }
+                    # Match "param_name: description" or "param_name (type): description"
+                    match = re.match(r"^([a-zA-Z0-9_]+)\s*(?:\([^)]+\))?:\s*(.*)$", line)
+                    if match:
+                        param_descriptions[match.group(1)] = match.group(2)
+
+        properties = {}
+        required = []
+
+        for param_name, param in sig.parameters.items():
+            if param_name in ["self", "cls"]:
+                continue
+
+            param_type = type_hints.get(param_name, Any)
+            json_type = type_mapping.get(param_type, "string") # fallback to string
+
+            param_schema: Dict[str, Any] = {"type": json_type}
+            if param_name in param_descriptions:
+                param_schema["description"] = param_descriptions[param_name]
+
+            properties[param_name] = param_schema
+
+            if param.default is inspect.Parameter.empty:
+                required.append(param_name)
+
+        schema = {"type": "object", "properties": properties}
+        if required:
+            schema["required"] = required
+
+        return schema
 
     def execute(self, arguments_json: str) -> Any:
         """Executes the mapped callable with the provided JSON arguments.
@@ -256,14 +177,6 @@ class ToolSet():
         """Initializes a ToolSet instance."""
         self.tools = tools or []
 
-    def get_openai_schema(self) -> List[Dict[str, Any]]:
-        """Returns the list of tool definitions in OpenAI schema format."""
-        return [t.to_openai_schema() for t in self.tools]
-
-    def get_anthropic_schema(self) -> List[Dict[str, Any]]:
-        """Returns the list of tool definitions in Anthropic schema format."""
-        return [t.to_anthropic_schema() for t in self.tools]
-
     def __execute_one(self, func_name: str,
                      arguments_json: str) -> Tuple[bool, Any]:
         """Executes a single named tool with the given JSON arguments.
@@ -290,7 +203,7 @@ class ToolSet():
         return True, result
 
     def execute_tool_calls(
-        self, tool_calls: List['ToolCall']
+        self, tool_calls: List[ToolCall]
     ) -> Tuple[List[Any], Dict[str, bool]]:
         """Executes a list of tool calls.
 
