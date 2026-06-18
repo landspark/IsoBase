@@ -42,7 +42,7 @@ from anthropic.lib.streaming._messages import accumulate_event
 from PIL import Image as PILImage
 from ark.core.image_service import convert_image_to_base64
 from ark.core.logger import LOGGER
-from ark.llm.entities import LLMResponse, TokenUsage
+from ark.llm.entities import LLMResponse, TokenUsage, ToolCall
 from ark.llm.providers.base import BaseLLMClient
 from ark.llm.tools import FunctionTool, ToolSet
 
@@ -402,9 +402,20 @@ class AnthropicMessages(BaseLLMClient):
                     "content": response.raw_response.content
                 })
 
-                tool_blocks, tool_results = (
-                    self.tool_set.execute_tool_calls_anthropic(
-                        response.tool_calls))
+                tool_outputs, tool_results = self.tool_set.execute_tool_calls(
+                    response.tool_calls)
+
+                tool_blocks = []
+                for tc, output, is_success in zip(response.tool_calls, tool_outputs, tool_results.values()):
+                    block: Dict[str, Any] = {
+                        "type": "tool_result",
+                        "tool_use_id": tc.id,
+                        "content": str(output),
+                    }
+                    if not is_success:
+                        block["is_error"] = True
+                    tool_blocks.append(block)
+
                 current_messages.append({
                     "role": "user",
                     "content": tool_blocks
@@ -498,8 +509,20 @@ class AnthropicMessages(BaseLLMClient):
                     "content": final_message.content
                 })
 
-                tool_blocks, tool_results = (
-                    self.tool_set.execute_tool_calls_anthropic(tool_calls))
+                tool_outputs, tool_results = self.tool_set.execute_tool_calls(
+                    tool_calls)
+
+                tool_blocks = []
+                for tc, output, is_success in zip(tool_calls, tool_outputs, tool_results.values()):
+                    block: Dict[str, Any] = {
+                        "type": "tool_result",
+                        "tool_use_id": tc.id,
+                        "content": str(output),
+                    }
+                    if not is_success:
+                        block["is_error"] = True
+                    tool_blocks.append(block)
+
                 current_messages.append({
                     "role": "user",
                     "content": tool_blocks
@@ -565,7 +588,7 @@ class AnthropicMessages(BaseLLMClient):
 
     def __parse_content(
             self, content_blocks: List[Any]
-    ) -> Tuple[str, List[Dict[str, Any]], str]:
+    ) -> Tuple[str, List[ToolCall], str]:
         """Parses Anthropic response content blocks.
 
         Args:
@@ -573,8 +596,7 @@ class AnthropicMessages(BaseLLMClient):
 
         Returns:
             A tuple of ``(text, tool_calls, reasoning)``, where ``tool_calls``
-            uses the standardized OpenAI shape so the shared tool machinery and
-            ``LLMResponse`` consumers work unchanged across providers.
+            is a list of standardized ToolCall instances.
         """
         text = ""
         reasoning = ""
@@ -586,14 +608,13 @@ class AnthropicMessages(BaseLLMClient):
             elif block_type == "thinking":
                 reasoning += getattr(block, "thinking", "") or ""
             elif block_type == "tool_use":
-                tool_calls.append({
-                    "id": block.id,
-                    "type": "function",
-                    "function": {
-                        "name": block.name,
-                        "arguments": dumps(block.input or {}),
-                    },
-                })
+                tool_calls.append(
+                    ToolCall(
+                        id=block.id,
+                        name=block.name,
+                        arguments=dumps(block.input or {})
+                    )
+                )
         return text, tool_calls, reasoning
 
     def __extract_usage(self, usage: Any) -> TokenUsage:

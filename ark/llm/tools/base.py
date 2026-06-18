@@ -17,7 +17,10 @@ tool definition can move between providers without loss.
 """
 
 from json import loads
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+
+if TYPE_CHECKING:
+    from ark.llm.entities import ToolCall
 
 
 class FunctionToolParameter():
@@ -261,7 +264,7 @@ class ToolSet():
         """Returns the list of tool definitions in Anthropic schema format."""
         return [t.to_anthropic_schema() for t in self.tools]
 
-    def _execute_one(self, func_name: str,
+    def __execute_one(self, func_name: str,
                      arguments_json: str) -> Tuple[bool, Any]:
         """Executes a single named tool with the given JSON arguments.
 
@@ -287,76 +290,27 @@ class ToolSet():
         return True, result
 
     def execute_tool_calls(
-        self, tool_calls: List[Dict[str, Any]]
-    ) -> Tuple[List[Dict[str, Any]], Dict[str, bool]]:
-        """Executes tool calls and returns OpenAI ``role: "tool"`` messages.
+        self, tool_calls: List['ToolCall']
+    ) -> Tuple[List[Any], Dict[str, bool]]:
+        """Executes a list of tool calls.
 
         Args:
-            tool_calls: A list of standardized tool calls as returned by the LLM
-                (``[{"id", "type": "function", "function": {"name", "arguments"}}]``).
+            tool_calls: A list of ToolCall objects to execute.
 
         Returns:
             A tuple containing:
-                - A list of response messages with the role 'tool'.
+                - A list of execution results (raw outputs from the callables).
                 - A dictionary mapping tool names to their execution success.
         """
-        messages = []
+        results = []
         latest_results = {}
 
         for tc in tool_calls:
-            func_name = tc["function"]["name"]
-            is_success, tool_output = self._execute_one(
-                func_name, tc["function"]["arguments"])
-            latest_results[func_name] = is_success
+            is_success, tool_output = self.__execute_one(tc.name, tc.arguments)
+            latest_results[tc.name] = is_success
+            results.append(tool_output)
 
-            messages.append({
-                "tool_call_id": tc["id"],
-                "role": "tool",
-                "name": func_name,
-                "content": str(tool_output)
-            })
-
-        return messages, latest_results
-
-    def execute_tool_calls_anthropic(
-        self, tool_calls: List[Dict[str, Any]]
-    ) -> Tuple[List[Dict[str, Any]], Dict[str, bool]]:
-        """Executes tool calls and returns Anthropic ``tool_result`` blocks.
-
-        Accepts the same standardized tool-call shape as ``execute_tool_calls``
-        so both providers share one execution path; only the result formatting
-        differs. The returned blocks are meant to be wrapped in a single
-        ``{"role": "user", "content": [...]}`` message.
-
-        Args:
-            tool_calls: A list of standardized tool calls
-                (``[{"id", "type": "function", "function": {"name", "arguments"}}]``).
-
-        Returns:
-            A tuple containing:
-                - A list of ``tool_result`` content blocks (``is_error`` is set
-                  to ``True`` for failed executions).
-                - A dictionary mapping tool names to their execution success.
-        """
-        blocks = []
-        latest_results = {}
-
-        for tc in tool_calls:
-            func_name = tc["function"]["name"]
-            is_success, tool_output = self._execute_one(
-                func_name, tc["function"]["arguments"])
-            latest_results[func_name] = is_success
-
-            block: Dict[str, Any] = {
-                "type": "tool_result",
-                "tool_use_id": tc["id"],
-                "content": str(tool_output),
-            }
-            if not is_success:
-                block["is_error"] = True
-            blocks.append(block)
-
-        return blocks, latest_results
+        return results, latest_results
 
     def __bool__(self) -> bool:
         """Returns True if the ToolSet contains at least one tool."""

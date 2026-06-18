@@ -177,8 +177,10 @@ def test_toolset_get_anthropic_schema():
     assert "input_schema" in schemas[0]
 
 
+from ark.llm.entities import ToolCall
+
 def test_execute_tool_calls_anthropic_blocks():
-    """Anthropic tool execution returns tool_result blocks."""
+    """Tool execution returns raw outputs now."""
     def tool_a(x):
         return True, f"got {x}"
 
@@ -187,15 +189,13 @@ def test_execute_tool_calls_anthropic_blocks():
         "function": {"name": "tool_a", "parameters": {"type": "object", "properties": {"x": {"type": "integer"}}}},
     }
     ts = ToolSet([FunctionTool.from_openai_schema(openai_def, {"tool_a": tool_a})])
-    calls = [{"id": "tu1", "type": "function",
-              "function": {"name": "tool_a", "arguments": '{"x": 5}'}}]
-    blocks, results = ts.execute_tool_calls_anthropic(calls)
+    calls = [ToolCall(id="tu1", name="tool_a", arguments='{"x": 5}')]
+
+    # ToolSet now only returns raw tool outputs. The anthropic method does not exist.
+    outputs, results = ts.execute_tool_calls(calls)
 
     assert results["tool_a"] is True
-    assert blocks[0]["type"] == "tool_result"
-    assert blocks[0]["tool_use_id"] == "tu1"
-    assert blocks[0]["content"] == "got 5"
-    assert "is_error" not in blocks[0]
+    assert outputs[0] == "got 5"
 
 
 # --- Client behavior --------------------------------------------------------

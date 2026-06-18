@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from ark.llm.providers import BaseLLMClient, OpenAIChat, AnthropicMessages
 from ark.llm.tools import FunctionTool, FunctionToolParameter, ToolSet
-from ark.llm.entities import TokenUsage, LLMResponse
+from ark.llm.entities import TokenUsage, LLMResponse, ToolCall
 
 __all__ = [
     "BaseLLMClient",
@@ -12,5 +12,6 @@ __all__ = [
     "FunctionToolParameter",
     "ToolSet",
     "TokenUsage",
-    "LLMResponse"
+    "LLMResponse",
+    "ToolCall"
 ]

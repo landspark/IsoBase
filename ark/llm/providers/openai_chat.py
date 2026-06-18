@@ -21,7 +21,7 @@ from openai.types.chat import ChatCompletionChunk, ChatCompletion
 from PIL import Image as PILImage
 
 from ark.core.logger import LOGGER
-from ark.llm.entities import LLMResponse, TokenUsage
+from ark.llm.entities import LLMResponse, TokenUsage, ToolCall
 from ark.llm.providers.base import BaseLLMClient
 from ark.llm.tools import FunctionTool, ToolSet
 
@@ -224,9 +224,17 @@ class OpenAIChat(BaseLLMClient):
 
         # Final yield with full aggregated data for logic/tools, but empty content
         # to avoid duplication in the ask loop.
+        final_tool_calls = [
+            ToolCall(
+                id=tc["id"],
+                name=tc["function"]["name"],
+                arguments=tc["function"]["arguments"]
+            ) for tc in tool_calls
+        ]
+
         yield LLMResponse(
             success=True, status_code=200,
-            content="", tool_calls=tool_calls,
+            content="", tool_calls=final_tool_calls,
             reasoning_content="",
             usage=usage
         )
@@ -276,14 +284,30 @@ class OpenAIChat(BaseLLMClient):
                 # Handle Tool Calls.
                 assistant_msg = {
                     "role": "assistant",
-                    "tool_calls": response.tool_calls
+                    "tool_calls": [{
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.name,
+                            "arguments": tc.arguments
+                        }
+                    } for tc in response.tool_calls]
                 }
                 if response.content:
                     assistant_msg["content"] = response.content
                 current_messages.append(assistant_msg)
 
-                tool_messages, tool_results = self.tool_set.execute_tool_calls(
+                tool_outputs, tool_results = self.tool_set.execute_tool_calls(
                     response.tool_calls)
+
+                tool_messages = []
+                for tc, output in zip(response.tool_calls, tool_outputs):
+                    tool_messages.append({
+                        "tool_call_id": tc.id,
+                        "role": "tool",
+                        "name": tc.name,
+                        "content": str(output)
+                    })
                 current_messages.extend(tool_messages)
                 self.latest_tool_call_result.update(tool_results)
 
@@ -360,13 +384,32 @@ class OpenAIChat(BaseLLMClient):
                     break
 
                 # Handle Tool Calls.
-                assistant_msg = {"role": "assistant", "tool_calls": tool_calls}
+                assistant_msg = {
+                    "role": "assistant",
+                    "tool_calls": [{
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.name,
+                            "arguments": tc.arguments
+                        }
+                    } for tc in tool_calls]
+                }
                 if current_round_content:
                     assistant_msg["content"] = current_round_content
                 current_messages.append(assistant_msg)
 
-                tool_messages, tool_results = self.tool_set.execute_tool_calls(
+                tool_outputs, tool_results = self.tool_set.execute_tool_calls(
                     tool_calls)
+
+                tool_messages = []
+                for tc, output in zip(tool_calls, tool_outputs):
+                    tool_messages.append({
+                        "tool_call_id": tc.id,
+                        "role": "tool",
+                        "name": tc.name,
+                        "content": str(output)
+                    })
                 current_messages.extend(tool_messages)
                 self.latest_tool_call_result.update(tool_results)
 
@@ -401,7 +444,7 @@ class OpenAIChat(BaseLLMClient):
 
     def __parse_completion(
             self, completion: ChatCompletion
-        ) -> Tuple[str, List[Dict[str, Any]], str, TokenUsage]:
+        ) -> Tuple[str, List[ToolCall], str, TokenUsage]:
         """Parses a standard ChatCompletion instance.
 
         Args:
@@ -414,14 +457,13 @@ class OpenAIChat(BaseLLMClient):
         content = choice.message.content or ""
         tool_calls = []
         if choice.message.tool_calls:
-            tool_calls = [{
-                "id": tc.id,
-                "type": "function",
-                "function": {
-                    "name": tc.function.name,
-                    "arguments": tc.function.arguments
-                }
-            } for tc in choice.message.tool_calls]
+            tool_calls = [
+                ToolCall(
+                    id=tc.id,
+                    name=tc.function.name,
+                    arguments=tc.function.arguments
+                ) for tc in choice.message.tool_calls
+            ]
         reasoning = getattr(choice.message, "reasoning_content", "")
         usage = self.__extract_usage(completion.usage)
         return content, tool_calls, reasoning, usage

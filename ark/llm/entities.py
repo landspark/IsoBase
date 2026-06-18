@@ -27,6 +27,20 @@ class TokenUsage:
 
 
 @dataclass
+class ToolCall:
+    """A provider-neutral representation of a tool/function call requested by the LLM.
+
+    Attributes:
+        id: The unique identifier for this tool call.
+        name: The name of the tool/function to call.
+        arguments: A JSON-serialized string of the arguments.
+    """
+    id: str
+    name: str
+    arguments: str
+
+
+@dataclass
 class LLMResponse:
     """Structured response from an LLM provider.
 
@@ -45,7 +59,7 @@ class LLMResponse:
     content: str = ""
     role: str = "assistant"
     usage: TokenUsage = field(default_factory=TokenUsage)
-    tool_calls: List[Dict[str, Any]] = field(default_factory=list)
+    tool_calls: List[ToolCall] = field(default_factory=list)
     raw_response: Any = None
     reasoning_content: str = ""
 
