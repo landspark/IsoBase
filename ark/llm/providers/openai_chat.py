@@ -50,9 +50,7 @@ class OpenAIChat(BaseLLMClient):
         default_model: str = "gpt-3.5-turbo",
         instructions: str = "",
         messages: List[Dict[str, str]] = None,
-        tools: List[Dict[str, Any]] = None,
-        tool_function_mapper: Dict[str, Callable] = None,
-        tool_function_callable_kwargs: Dict[str, Any] = None,
+        tools: Union[ToolSet, List[FunctionTool], None] = None,
         conversation_mode: bool = True,
         max_tool_rounds: int = 5,
         **kwargs: Any):
@@ -64,9 +62,7 @@ class OpenAIChat(BaseLLMClient):
             default_model: The default model ID.
             instructions: System instructions for the model.
             messages: Initial list of conversation messages.
-            tools: A list of tool definitions in OpenAI format.
-            tool_function_mapper: Map of tool names to Python callables.
-            tool_function_callable_kwargs: Static kwargs for tool callables.
+            tools: An optional ToolSet or list of FunctionTool objects.
             conversation_mode: If True, history is preserved across asks.
             max_tool_rounds: Limits recursive tool calls per ask.
             **kwargs: Additional arguments for the OpenAI client or API.
@@ -81,12 +77,10 @@ class OpenAIChat(BaseLLMClient):
         if not self.messages and self.instructions:
             self.messages = [{"role": "system", "content": self.instructions}]
 
-        # Use the centralized ToolSet for management.
-        self.tool_set = ToolSet([
-            FunctionTool.from_openai_schema(
-                t, tool_function_mapper, tool_function_callable_kwargs)
-            for t in (tools or []) if t.get("type") == "function"
-        ])
+        if isinstance(tools, ToolSet):
+            self.tool_set = tools
+        else:
+            self.tool_set = ToolSet(tools or [])
         self.latest_tool_call_result = {}
 
         create_params = signature(self.client.chat.completions.create).parameters

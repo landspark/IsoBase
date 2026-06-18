@@ -35,29 +35,28 @@ from os import path
 from typing import Any, Dict, Optional
 
 from ark.llm import AnthropicMessages, OpenAIChat, BaseLLMClient
+from ark.llm.tools import FunctionTool
 
 ENV_PATH = path.join(path.dirname(__file__), ".env")
-
-# A trivial tool used to verify the multi-turn tool-calling loop end to end.
-WEATHER_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "get_weather",
-        "description": "Get the current weather for a city.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "city": {"type": "string", "description": "City name"},
-            },
-            "required": ["city"],
-        },
-    },
-}
-
 
 def _get_weather(city: str) -> tuple:
     """Stub weather tool returning a deterministic result."""
     return True, f"It is 22C and sunny in {city}."
+
+
+# A trivial tool used to verify the multi-turn tool-calling loop end to end.
+WEATHER_TOOL = FunctionTool(
+    name="get_weather",
+    description="Get the current weather for a city.",
+    parameters_schema={
+        "type": "object",
+        "properties": {
+            "city": {"type": "string", "description": "City name"},
+        },
+        "required": ["city"],
+    },
+    mapped_callable=_get_weather
+)
 
 
 def _load_env() -> Dict[str, str]:
@@ -141,7 +140,6 @@ def run_openai(kwargs: Dict[str, Any]) -> None:
     """Runs the scenario battery against the OpenAI-compatible provider."""
     client = OpenAIChat(
         tools=[WEATHER_TOOL],
-        tool_function_mapper={"get_weather": _get_weather},
         **kwargs)
     _run_scenarios("OpenAIChat", client)
 
@@ -150,7 +148,6 @@ def run_anthropic(kwargs: Dict[str, Any]) -> None:
     """Runs the scenario battery against the Anthropic-compatible provider."""
     client = AnthropicMessages(
         tools=[WEATHER_TOOL],
-        tool_function_mapper={"get_weather": _get_weather},
         **kwargs)
     _run_scenarios("AnthropicMessages", client)
 

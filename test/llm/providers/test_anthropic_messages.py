@@ -290,12 +290,12 @@ def test_ask_stream_tool_call(mock_anthropic):
     def tool_a(x):
         return True, f"Done {x}"
 
-    tool_def = {
-        "type": "function",
-        "function": {"name": "tool_a", "parameters": {"type": "object", "properties": {"x": {"type": "integer"}}}},
-    }
-    client = AnthropicMessages(api_key="test-key", tools=[tool_def],
-                               tool_function_mapper={"tool_a": tool_a})
+    tool_def = FunctionTool(
+        name="tool_a",
+        parameters_schema={"type": "object", "properties": {"x": {"type": "integer"}}},
+        mapped_callable=tool_a
+    )
+    client = AnthropicMessages(api_key="test-key", tools=[tool_def])
     mock_instance = mock_anthropic.return_value
 
     # Round 1: a tool_use block whose input streams in as partial JSON; the SDK
@@ -333,12 +333,12 @@ def test_multi_turn_tool(mock_anthropic):
     def tool_a(x):
         return True, f"Done {x}"
 
-    tool_def = {
-        "type": "function",
-        "function": {"name": "tool_a", "parameters": {"type": "object", "properties": {"x": {"type": "integer"}}}},
-    }
-    client = AnthropicMessages(api_key="test-key", tools=[tool_def],
-                               tool_function_mapper={"tool_a": tool_a})
+    tool_def = FunctionTool(
+        name="tool_a",
+        parameters_schema={"type": "object", "properties": {"x": {"type": "integer"}}},
+        mapped_callable=tool_a
+    )
+    client = AnthropicMessages(api_key="test-key", tools=[tool_def])
     mock_instance = mock_anthropic.return_value
 
     # Round 1: model calls the tool. Round 2: final answer.

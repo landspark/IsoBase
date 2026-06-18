@@ -74,9 +74,7 @@ class AnthropicMessages(BaseLLMClient):
         default_model: str = "claude-opus-4-8",
         instructions: str = "",
         messages: List[Dict[str, Any]] = None,
-        tools: List[Dict[str, Any]] = None,
-        tool_function_mapper: Dict[str, Callable] = None,
-        tool_function_callable_kwargs: Dict[str, Any] = None,
+        tools: Union[ToolSet, List[FunctionTool], None] = None,
         conversation_mode: bool = True,
         max_tool_rounds: int = 5,
         max_tokens: int = 4096,
@@ -90,10 +88,7 @@ class AnthropicMessages(BaseLLMClient):
             default_model: The default model ID.
             instructions: System instructions for the model (top-level ``system``).
             messages: Initial list of conversation messages (no system entry).
-            tools: A list of tool definitions in OpenAI format (converted to
-                Anthropic format on the wire), keeping parity with OpenAIChat.
-            tool_function_mapper: Map of tool names to Python callables.
-            tool_function_callable_kwargs: Static kwargs for tool callables.
+            tools: An optional ToolSet or list of FunctionTool objects.
             conversation_mode: If True, history is preserved across asks.
             max_tool_rounds: Limits recursive tool calls per ask.
             max_tokens: Default maximum output tokens (required by the API).
@@ -112,13 +107,10 @@ class AnthropicMessages(BaseLLMClient):
         # as a message entry (unlike OpenAIChat).
         self.messages = messages or []
 
-        # Tools are supplied in OpenAI format for parity with OpenAIChat, then
-        # rendered to Anthropic's flat schema when calling the API.
-        self.tool_set = ToolSet([
-            FunctionTool.from_openai_schema(
-                t, tool_function_mapper, tool_function_callable_kwargs)
-            for t in (tools or []) if t.get("type") == "function"
-        ])
+        if isinstance(tools, ToolSet):
+            self.tool_set = tools
+        else:
+            self.tool_set = ToolSet(tools or [])
         self.latest_tool_call_result = {}
 
         create_params = signature(self.client.messages.create).parameters

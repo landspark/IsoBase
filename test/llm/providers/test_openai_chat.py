@@ -13,6 +13,7 @@ import pytest
 from PIL import Image
 from ark.llm.providers.openai_chat import OpenAIChat
 from ark.llm import LLMResponse
+from ark.llm.tools import FunctionTool
 
 @pytest.fixture
 def mock_openai_chat():
@@ -88,12 +89,13 @@ def test_openai_chat_ask_stream_success(mock_openai_chat):
 def test_openai_chat_multi_turn_tool(mock_openai_chat):
     """Tests recursive tool calling in ask loop."""
     def tool_a(x: int): return True, f"Done {x}"
-    tool_def = {
-        "type": "function",
-        "function": {"name": "tool_a", "parameters": {"type": "object", "properties": {"x": {"type": "integer"}}}}
-    }
-    
-    client = OpenAIChat(api_key="test-key", tools=[tool_def], tool_function_mapper={"tool_a": tool_a})
+    tool_def = FunctionTool(
+        name="tool_a",
+        parameters_schema={"type": "object", "properties": {"x": {"type": "integer"}}},
+        mapped_callable=tool_a
+    )
+
+    client = OpenAIChat(api_key="test-key", tools=[tool_def])
     mock_instance = mock_openai_chat.return_value
     
     # Round 1: Model calls tool
