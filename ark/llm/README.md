@@ -11,7 +11,7 @@ The design goal is that swapping providers should not change calling code: tools
 ## Features
 
 - **Provider-neutral surface**: `OpenAIChat` and `AnthropicMessages` share the same public methods and return the same `LLMResponse`, so they are drop-in interchangeable.
-- **Neutral tool format with bidirectional conversion**: a single `FunctionTool` renders to either OpenAI (`to_openai_schema`) or Anthropic (`to_anthropic_schema`) and ingests from either (`from_openai_schema` / `from_anthropic_schema`). No vendor format is treated as the canonical one.
+- **Neutral tool format with auto-generated schemas**: a single `FunctionTool` can automatically extract its `name`, `description`, and JSON `parameters_schema` directly from the signature and docstring of a mapped Python callable. No vendor format is treated as the canonical one, and providers translate the neutral `ToolCall` on the fly.
 - **Multi-turn tool calling**: `ask()` runs a bounded recursive tool-calling loop (`max_tool_rounds`), executing Python callables and feeding results back to the model.
 - **Streaming and non-streaming**: both paths are implemented for each provider; streaming yields incremental text/reasoning chunks then a final summary carrying tool calls and usage.
 - **Extended thinking**: opt-in via `thinking` (e.g. `{"type": "adaptive"}` for Anthropic); thinking text surfaces into `LLMResponse.reasoning_content`.
@@ -47,29 +47,56 @@ for chunk in client.ask("Count from 1 to 5.", stream=True):
 
 ### Tool calling
 
-Tools are defined once in the neutral (OpenAI-shaped) format and work with either provider.
+Tools are defined once in the neutral format and work with either provider. You can let the framework automatically generate the JSON schema from your Python function's signature and docstring, or explicitly provide them to override this behavior.
+
+#### Option A: Automatic Generation (Default)
 
 ```python
-def get_weather(city: str):
+from ark.llm.tools import FunctionTool
+
+def get_weather(city: str) -> tuple[bool, str]:
+    """Get the current weather for a city.
+    
+    Args:
+        city: The name of the city.
+    """
     return True, f"It is 22C and sunny in {city}."  # (is_success, content)
 
-weather_tool = {
-    "type": "function",
-    "function": {
-        "name": "get_weather",
-        "description": "Get the current weather for a city.",
-        "parameters": {
-            "type": "object",
-            "properties": {"city": {"type": "string"}},
-            "required": ["city"],
-        },
-    },
-}
+# Automatically extracts name, description, and parameter types from the callable
+weather_tool = FunctionTool(get_weather)
+```
 
+#### Option B: Explicit Overrides (Manual Schema)
+
+If you need precise control over the metadata and parameters schema exposed to the LLM—or want to decouple the JSON-Schema from the Python function signature—you can explicitly provide `name`, `description`, and `parameters_schema` to override auto-generation:
+
+```python
+from ark.llm.tools import FunctionTool
+
+# Explicitly override metadata and schema manually
+weather_tool = FunctionTool(
+    mapped_callable=get_weather,
+    name="get_weather_override",
+    description="Fetch the current weather condition and temperature for a given city.",
+    parameters_schema={
+        "type": "object",
+        "properties": {
+            "city": {
+                "type": "string",
+                "description": "The target city name (e.g. 'Paris', 'Tokyo')"
+            }
+        },
+        "required": ["city"]
+    }
+)
+```
+
+With either option, wire the tool into the client:
+
+```python
 client = AnthropicMessages(
     api_key="sk-ant-...",
     tools=[weather_tool],
-    tool_function_mapper={"get_weather": get_weather},
 )
 resp = client.ask("What's the weather in Paris? Use the tool.")
 print(resp.content)                       # final answer after the tool round
@@ -87,11 +114,11 @@ print(resp.content)            # final answer
 
 ## Module Structure
 
-- `entities.py` — `LLMResponse` and `TokenUsage` dataclasses; the standardized return type for every client method.
+- `entities.py` — `LLMResponse`, `TokenUsage`, and `ToolCall` dataclasses; the standardized provider-neutral data types used for inputs and returns.
 - `providers/base.py` — `BaseLLMClient` abstract interface (`generate`, `generate_stream`) plus `build_user_message_content` for multimodal messages.
 - `providers/openai_chat.py` — `OpenAIChat`, the OpenAI Chat Completion compatible client.
 - `providers/anthropic_messages.py` — `AnthropicMessages`, the Anthropic Messages compatible client (named after the Messages API, mirroring how `OpenAIChat` is named after the Chat Completion API).
-- `tools/base.py` — `FunctionTool`, `FunctionToolParameter`, `ToolSet`; the neutral tool representation and per-vendor schema conversion / execution.
+- `tools/base.py` — `FunctionTool`, `ToolSet`; the neutral tool representation and execution engine.
 
 Image helpers live in `ark/core/image_service.py` (`convert_image_to_data_url` for OpenAI, `convert_image_to_base64` for Anthropic).
 

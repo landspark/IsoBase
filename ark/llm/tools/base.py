@@ -45,15 +45,22 @@ class FunctionTool:
                  tool_function_callable_kwargs: Dict[str, Any] = None):
         """Initializes a FunctionTool from neutral fields.
 
-        If ``parameters_schema`` is omitted, this attempts to auto-generate
-        the schema using `inspect.signature` and typing hints. It uses
-        best-effort parsing to extract parameter descriptions from the docstring.
+        While auto-generation of metadata (name, description, parameters_schema) is
+        the default behavior using Python's `inspect` and typing hints, developers
+        can explicitly pass these arguments to override and bypass the automatic
+        generation mechanism. This is useful for customizing or fine-tuning the tool
+        schema without modifying the underlying Python function, or when precise
+        JSON-Schema definition is required.
 
         Args:
             mapped_callable: The Python callable that backs this tool.
             name: The tool/function name (defaults to callable's name).
-            description: A human-readable description (defaults to first docstring line).
-            parameters_schema: The JSON-Schema inputs object.
+                  Explicitly passing this overrides the name.
+            description: A human-readable description (defaults to the first docstring line).
+                         Explicitly passing this overrides the description.
+            parameters_schema: The JSON-Schema inputs object. If omitted, this attempts to
+                               auto-generate the schema using `inspect.signature` and typing hints.
+                               Explicitly passing a dictionary overrides and bypasses auto-generation.
             tool_function_callable_kwargs: Static kwargs to pass to the callable.
         """
         self.mapped_callable = mapped_callable

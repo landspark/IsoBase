@@ -11,7 +11,7 @@
 ## 功能特性
 
 - **厂商中立的统一接口**：`OpenAIChat` 与 `AnthropicMessages` 共享相同的公开方法、返回相同的 `LLMResponse`，可直接互换。
-- **中立工具格式 + 双向转化**：单个 `FunctionTool` 可渲染为 OpenAI（`to_openai_schema`）或 Anthropic（`to_anthropic_schema`）格式，也可从两者摄入（`from_openai_schema` / `from_anthropic_schema`）。不把任何一家的格式当作唯一标准。
+- **中立工具格式与自动 Schema 生成**：单个 `FunctionTool` 可直接从绑定的 Python 函数的签名（Signature）和文档字符串（Docstring）中**自动提取**其 `name`、`description` 和 JSON `parameters_schema`。不把任何一家的格式当作唯一标准，各提供商的客户端在发送请求前自动将中立的 `ToolCall` 即时翻译为自身需要的格式。
 - **多轮工具调用**：`ask()` 运行一个有上限的递归工具调用循环（`max_tool_rounds`），执行 Python 可调用对象并把结果回传给模型。
 - **流式与非流式**：每个 provider 都实现了两条路径；流式会先逐块产出文本/思考增量，最后再产出携带工具调用与用量的汇总块。
 - **扩展思考**：通过 `thinking` 开启（如 Anthropic 的 `{"type": "adaptive"}`）；思考文本会进入 `LLMResponse.reasoning_content`。
@@ -47,29 +47,56 @@ for chunk in client.ask("Count from 1 to 5.", stream=True):
 
 ### 工具调用
 
-工具以中立（OpenAI 形状）格式定义一次，对两个 provider 都适用。
+工具以中立格式定义一次，对两个 provider 都适用。框架支持直接通过您的 Python 函数的签名和 docstring 自动生成 JSON schema，您也可以手动显式传入这些参数来覆盖自动生成的行为。
+
+#### 选项 A：自动生成（默认行为）
 
 ```python
-def get_weather(city: str):
+from ark.llm.tools import FunctionTool
+
+def get_weather(city: str) -> tuple[bool, str]:
+    """Get the current weather for a city.
+    
+    Args:
+        city: The name of the city.
+    """
     return True, f"It is 22C and sunny in {city}."  # (是否成功, 内容)
 
-weather_tool = {
-    "type": "function",
-    "function": {
-        "name": "get_weather",
-        "description": "Get the current weather for a city.",
-        "parameters": {
-            "type": "object",
-            "properties": {"city": {"type": "string"}},
-            "required": ["city"],
-        },
-    },
-}
+# 自动从 Python 函数签名和 Docstring 中提取 name、description 和 parameters_schema
+weather_tool = FunctionTool(get_weather)
+```
 
+#### 选项 B：手动显式覆盖（显式 Schema）
+
+如果您需要精确控制向大模型暴露的元数据和参数 Schema，或者希望将 JSON-Schema 与 Python 函数签名解耦，可以显式提供 `name`、`description` 和 `parameters_schema` 参数：
+
+```python
+from ark.llm.tools import FunctionTool
+
+# 手动显式覆盖元数据和 schema
+weather_tool = FunctionTool(
+    mapped_callable=get_weather,
+    name="get_weather_override",
+    description="获取指定城市的当前天气状况与温度信息。",
+    parameters_schema={
+        "type": "object",
+        "properties": {
+            "city": {
+                "type": "string",
+                "description": "目标城市名称（例如：'Paris', 'Tokyo'）"
+            }
+        },
+        "required": ["city"]
+    }
+)
+```
+
+对于上述任一选项，都可以将工具注册到客户端：
+
+```python
 client = AnthropicMessages(
     api_key="sk-ant-...",
     tools=[weather_tool],
-    tool_function_mapper={"get_weather": get_weather},
 )
 resp = client.ask("What's the weather in Paris? Use the tool.")
 print(resp.content)                       # 工具轮之后的最终回答
@@ -87,11 +114,11 @@ print(resp.content)            # 最终回答
 
 ## 模块结构
 
-- `entities.py` —— `LLMResponse` 与 `TokenUsage` 数据类；每个客户端方法的标准化返回类型。
+- `entities.py` —— `LLMResponse`、`TokenUsage` 与 `ToolCall` 数据类；用作输入和每个客户端方法的标准化返回类型。
 - `providers/base.py` —— `BaseLLMClient` 抽象接口（`generate`、`generate_stream`）以及用于多模态消息的 `build_user_message_content`。
 - `providers/openai_chat.py` —— `OpenAIChat`，OpenAI Chat Completion 兼容客户端。
 - `providers/anthropic_messages.py` —— `AnthropicMessages`，Anthropic Messages 兼容客户端（按其对接的 Messages API 命名，与 `OpenAIChat` 按 Chat Completion API 命名同理）。
-- `tools/base.py` —— `FunctionTool`、`FunctionToolParameter`、`ToolSet`；中立工具表示，以及各厂商的 schema 转化 / 执行。
+- `tools/base.py` —— `FunctionTool` 与 `ToolSet`；中立工具表示及执行引擎。
 
 图像辅助函数位于 `ark/core/image_service.py`（`convert_image_to_data_url` 供 OpenAI，`convert_image_to_base64` 供 Anthropic）。
 
