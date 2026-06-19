@@ -83,4 +83,4 @@ def str_to_log_level(s: str):
     else:
         raise ValueError("unknown log level: {}".format(s))
 
-LOGGER = init_logger("ARK", None, start=True)
+LOGGER = init_logger("IsoBase", None, start=True)

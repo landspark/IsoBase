@@ -17,7 +17,7 @@ from sqlalchemy.orm.session import Session
 from datetime import datetime
 from os import path, remove
 
-from ark.core import LOGGER
+from isobase.core import LOGGER
 
 # Declare base object and connections.
 Base = declarative_base()

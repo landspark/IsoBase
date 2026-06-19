@@ -8,7 +8,7 @@
 @Contact: https://github.com/SwordJack/
 """
 
-from ark import LocaleManager
+from isobase import LocaleManager
 
 
 class TestLocaleManager:

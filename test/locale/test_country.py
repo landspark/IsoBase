@@ -8,7 +8,7 @@
 @Contact: https://github.com/SwordJack/
 """
 
-from ark.locale.country import (
+from isobase.locale.country import (
     get_country_by_alpha2,
     get_language_by_alpha2,
 )

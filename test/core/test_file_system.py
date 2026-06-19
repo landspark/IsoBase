@@ -8,7 +8,7 @@
 """
 
 from os import path
-from ark.core.file_system import (
+from isobase.core.file_system import (
     make_directory,
     remove_directory,
     copy_file,

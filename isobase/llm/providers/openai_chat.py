@@ -20,10 +20,10 @@ from openai.types import CompletionUsage
 from openai.types.chat import ChatCompletionChunk, ChatCompletion
 from PIL import Image as PILImage
 
-from ark.core.logger import LOGGER
-from ark.llm.entities import LLMResponse, TokenUsage, ToolCall
-from ark.llm.providers.base import BaseLLMClient
-from ark.llm.tools import FunctionTool, ToolSet
+from isobase.core.logger import LOGGER
+from isobase.llm.entities import LLMResponse, TokenUsage, ToolCall
+from isobase.llm.providers.base import BaseLLMClient
+from isobase.llm.tools import FunctionTool, ToolSet
 
 
 class OpenAIChat(BaseLLMClient):

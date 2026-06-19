@@ -21,7 +21,7 @@ import inspect
 import re
 from typing import Any, Callable, Dict, List, Optional, Tuple, get_type_hints
 
-from ark.llm.entities import ToolCall
+from isobase.llm.entities import ToolCall
 
 class FunctionTool:
     """A provider-neutral tool the LLM can call to perform actions.

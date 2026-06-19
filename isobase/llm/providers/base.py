@@ -13,8 +13,8 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 
 from PIL import Image as PILImage
 
-from ark.core.image_service import convert_image_to_data_url
-from ark.llm.entities import LLMResponse
+from isobase.core.image_service import convert_image_to_data_url
+from isobase.llm.entities import LLMResponse
 
 
 class BaseLLMClient(ABC):

@@ -11,7 +11,7 @@ Usage:
     1. Copy the template and fill in real values (the real .env is git-ignored):
          cp test/llm/live/.env.example test/llm/live/.env
        Then edit test/llm/live/.env.
-    2. Run from the repo root (so the ``ark`` package is importable):
+    2. Run from the repo root (so the ``isobase`` package is importable):
          python -m test.llm.live.run_live          # both providers, all scenarios
          python -m test.llm.live.run_live openai    # only the openai section
          python -m test.llm.live.run_live anthropic # only the anthropic section
@@ -34,8 +34,8 @@ import sys
 from os import path
 from typing import Any, Dict, Optional
 
-from ark.llm import AnthropicMessages, OpenAIChat, BaseLLMClient
-from ark.llm.tools import FunctionTool
+from isobase.llm import AnthropicMessages, OpenAIChat, BaseLLMClient
+from isobase.llm.tools import FunctionTool
 
 ENV_PATH = path.join(path.dirname(__file__), ".env")
 

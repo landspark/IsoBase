@@ -11,14 +11,14 @@
 from unittest.mock import MagicMock, patch
 import pytest
 from PIL import Image
-from ark.llm.providers.openai_chat import OpenAIChat
-from ark.llm import LLMResponse
-from ark.llm.tools import FunctionTool
+from isobase.llm.providers.openai_chat import OpenAIChat
+from isobase.llm import LLMResponse
+from isobase.llm.tools import FunctionTool
 
 @pytest.fixture
 def mock_openai_chat():
     """Fixture to mock the OpenAI client."""
-    with patch("ark.llm.providers.openai_chat.OpenAI") as mock:
+    with patch("isobase.llm.providers.openai_chat.OpenAI") as mock:
         yield mock
 
 def test_openai_chat_init(mock_openai_chat):
