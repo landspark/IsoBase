@@ -2,93 +2,97 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## What ARK is
+## Rule You Should Follow (Hard Constraints)
 
-Agile Resource Kernel (ARK) is a Python automation framework for corporate resource management, built around a JSON-driven workflow engine with AI/LLM integration. It is a library (no `setup.py`/`pyproject.toml`), so code is imported relative to the repo root rather than pip-installed.
+### 1. Think Before Coding
 
-## Environment & commands
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
 
-The project uses a conda environment named `ark` (Python 3.13). Set it up with:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
 
-```bash
-conda env create -f environment.yml
-conda activate ark
+### 2. Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+  Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+### 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+- **Cleanup**: Remove imports/variables/functions that YOUR changes made unused. Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+### 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+Transform tasks into verifiable goals:
+
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
 ```
 
-Tests run with pytest **from the repo root** (the `ark` package must be importable from the current directory — there is no installed package):
+## Quick Context (Cheatsheet)
 
-```bash
-python -m pytest                                          # all tests
-python -m pytest test/workflow/test_workflow.py           # one file
-python -m pytest test/workflow/test_workflow.py::test_general_reload_pass   # one test
-```
+**What ARK is**: Agile Resource Kernel (ARK) is a Python automation framework built around a JSON-driven workflow engine with AI/LLM integration. It is a library (no `setup.py`), so code is imported relative to the repo root rather than pip-installed.
 
-There is no build step and no configured linter. Code style follows the [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html) by convention (see Conventions below).
+**Environment & Testing**:
 
-Known dependency gap: `Pillow` (`PIL`) is imported by `ark/core/image_service.py` and the LLM module but is **not** declared in `environment.yml`. A fresh env from that file will fail to `import ark.llm` until Pillow is installed.
+- Python 3.13 via conda. Setup: `conda env create -f environment.yml && conda activate ark`
+- _Note: `Pillow` is required but missing from `environment.yml`. Install it manually if needed._
+- Tests use `pytest` and **must** be run from the repo root:
+  - `python -m pytest` (all tests)
+  - `python -m pytest test/workflow/test_workflow.py` (specific file)
 
-## Module map
+**Conventions**:
 
-Four packages under `ark/`, each re-exporting its public surface through `__init__.py`:
+- Type-annotate every parameter/return value with docstrings.
+- Double quotes (`"`) are the primary string quote.
+- Files begin with a docblock (`@File`, `@Created`, `@Author`, `@Contact`).
+- Tests mirror source tree under `test/` (e.g. `test/core/test_logger.py`).
+- Branches: `main` (release), `develop` (integration). Format: `<name>/<type>_<desc>`.
 
-- `ark.core` — shared infrastructure: global `LOGGER` (colorlog), `file_system` helpers, `image_service`. Per the developer guide, OS/file/logging operations belong here; reuse these rather than reinventing them.
-- `ark.workflow` — the JSON workflow engine (the heart of the project).
-- `ark.llm` — OpenAI-compatible chat client with tool calling and multimodal input.
-- `ark.locale` — locale resolution from phone numbers and country/language metadata.
+## Architectural Boundaries
 
-## Workflow engine architecture (`ark/workflow`)
+### `ark/llm` — LLM Client & Tool Engine
 
-This is the most intricate subsystem and spans `workflow.py`, `config.py`, and `database.py`. A workflow is defined by a JSON "order" file describing a nested tree of work units.
+This module is strictly separated into Data -> Logic -> Adapters to maintain vendor neutrality.
 
-**Execution entity hierarchy** (all in `workflow.py`):
+- **`entities.py` (Data DTOs)**: Defines `LLMResponse`, `TokenUsage`, and `ToolCall`. These represent pure data boundaries. `ToolCall` is the universal representation of what the model wants to do.
+- **`tools/` (Engine Logic)**: `FunctionTool` and `ToolSet`. Represents local capabilities. `FunctionTool` automatically extracts JSON schemas from Python callable signatures and docstrings (manual overrides allowed). `ToolSet` blindly executes `ToolCall` requests; it has zero knowledge of OpenAI or Anthropic formats.
+- **`providers/` (Translators/Adapters)**: `OpenAIChat` and `AnthropicMessages`. These handle the actual network requests, multi-turn loops, and streaming accumulation. They are responsible for translating the neutral `FunctionTool` and `ToolCall` objects into their specific vendor's JSON dialects right before transmission.
 
-- `ExecutionEntity` — base class: identification, status, tree navigation, SQLite sync, pickle snapshot/load.
-- `WorkUnit` — a single step. Its `api` key is mapped to a Python callable via the global `UNIT_API_MAPPER` (in `config.py`). Performs self-inspection of arguments against the callable's signature at init.
-- `WorkFlow` — an ordered list of `WorkUnit`s; executes them sequentially, collecting errors without halting on non-fatal ones.
-- `ControlWorkUnit` → `IterativeWorkUnit` → `LoopWorkUnit` / `ClusterBatchWorkUnit` — control-flow units that wrap a loop/batch body as sub-`WorkFlow`s. `ClusterBatchWorkUnit.execute` is still a stub copied from the loop logic.
-- `GeneralWorkUnit` — the outermost entry point that carries the entire workflow. Use `GeneralWorkUnit.from_json_filepath(...)` to load and `.execute()` to run.
+### `ark/workflow` — JSON Workflow Engine
 
-**How APIs are registered**: callables are added to `UNIT_API_MAPPER` (a module-global dict) by updating it at import time — see `WIDGET_API_MAPPER` in `config.py` and `test/workflow/pseudo_api.py` for the pattern. A `WorkUnit`'s `api` string must already be present in this dict at init or initialization fails.
+A nested tree of execution units driven by JSON "order" files.
 
-**Data flow between units**: each `WorkFlow` has an `intermediate_data_mapper` (this layer's results) plus `outer_data_mappers` (inherited from parent layers). In JSON args, a value wrapped in backticks like `` "`fruit_1`" `` is a _variable reference_ resolved from these mappers at execution time (see `JsonConfigVariableFormatter` in `config.py`), not a literal. `store_as` names the key a unit's return value is written to.
+- **Execution Hierarchy**: `ExecutionEntity` (base, handles SQLite sync) -> `WorkUnit` (single step mapped to a Python API) -> `WorkFlow` (sequential list of units) -> `GeneralWorkUnit` (outermost entry point).
+- **APIs**: Registered via `UNIT_API_MAPPER` in `config.py` at import time.
+- **Data Flow**: Handled via `intermediate_data_mapper` and `outer_data_mappers`. Variables wrapped in backticks (e.g. ``"`var_name`"``) are dynamically resolved at runtime.
+- **Persistence**: Statuses auto-sync to SQLite via `database.py`. `GeneralWorkUnit` can pickle snapshot state (`save_snapshot=True`) for resume/continue computing.
 
-**Status & control flow**: `StatusCode` (in `config.py`) defines all execution states and the status _groups_ (e.g. `error_or_pause_statuses`, `skippable_statuses`, `unexecutable_statuses`) that drive how errors and pauses propagate up the tree and which units are skipped on re-run. Setting `.status` to an executed state auto-syncs to SQLite.
+### Other Modules
 
-**Persistence & continue-computing**:
-
-- SQLite (via SQLAlchemy, `database.py`) records each entity's status keyed by its `identifier`, which is `"{api_key}@{locator}"` (e.g. `checkpoint_error@4:loop_1:0`). `locate_by_identifier` / `locate` walk the tree by this locator.
-- `GeneralWorkUnit` with `save_snapshot=True` pickles its full state on exit. Reload an updated JSON via `reload_json_filepath(...)`; only units whose args changed are marked `SUSPECIOUS_UPDATES` and re-run — the architecture (unit tree shape) must be unchanged or reload is rejected.
-
-**Working-directory side effects**: `GeneralWorkUnit` and iterative units `chdir` into the working directory during execution and back to the launch directory (`BASE_DIRECTORY`) afterward. When `save_snapshot=False` and `debug=False`, `from_dict` sleeps 5s with a cancel warning before proceeding.
-
-The `ark/workflow/README.md` has a runnable quick-start order and the load/reload API. Test fixtures in `test/workflow/data/*.json` are good concrete examples.
-
-## LLM module architecture (`ark/llm`)
-
-- `providers/base.py` — `BaseLLMClient` abstract interface (`generate`, `generate_stream`) plus `build_user_message_content` for multimodal messages.
-- `providers/openai_chat.py` — `OpenAIChat`, the concrete OpenAI-compatible client. `ask()` runs a multi-turn tool-calling loop (bounded by `max_tool_rounds`) over the lower-level `generate`/`generate_stream`; both streaming and non-streaming paths are supported and history is preserved on error.
-- `entities.py` — `LLMResponse` and `TokenUsage` dataclasses; every client method returns the standardized `LLMResponse`.
-- `tools/base.py` — `FunctionTool`, `FunctionToolParameter`, `ToolSet` implement OpenAI-style function calling. A tool's Python callable is supplied via `tool_function_mapper`; `ToolSet.execute_tool_calls` runs them and formats `role: "tool"` messages.
-- Multimodal images go through `ark/core/image_service.convert_image_to_data_url` (PIL image → PNG data URL).
-
-LLM tests mock the `OpenAI` client (`unittest.mock.patch` on `ark.llm.providers.openai_chat.OpenAI`); they never hit a live API.
-
-## Locale module architecture (`ark/locale`)
-
-`LocaleManager` (`locale_manager.py`) is both a resolver and a per-locale metadata container. It resolves a locale from a raw phone number (`phone.py`, backed by `phonenumbers`) and looks up country/language names and flags (`country.py`, backed by `pycountry`). Internal codes are lowercase-underscore (`zh_cn`); `code_bcp47` gives the `zh-CN` form.
-
-## Conventions
-
-From `docs/developer.md` and `.gemini/GEMINI.md`:
-
-- Type-annotate every function/method parameter and return value, with docstrings explaining them.
-- Use double quotes as the primary string quote.
-- Start each Python file with a header docblock containing `@File`, `@Created`, `@Author`, `@Contact` (see any existing file, e.g. `ark/core/logger.py`).
-- Favor simple, minimal changes; avoid hardcoding constant strings/numbers — many are centralized as module-level constants (e.g. the `*_KEY` / `*_LABEL` names at the top of `workflow.py`).
-- Tests mirror the source tree under `test/` with a `test_` filename prefix (`ark/core/logger.py` → `test/core/test_logger.py`).
-
-## Version control
-
-- `develop` is the integration branch for ongoing work; `main` is the public release branch.
-- Branch naming: `<your_name>/<type>_<description>`, where `<type>` is `feature`, `fix`, `hotfix`, or `docs` (e.g. `tom/feature_eat_watermelon`). `hotfix_*` branches target `main` directly; the rest target `develop`.
-- Merged branches are renamed with a `zarchive/` prefix to mark them retired.
+- **`ark/core`**: OS/file/logging (`colorlog`)/image helpers. Reuse these; do not reinvent them.
+- **`ark/locale`**: Resolves locales from phone numbers (`phonenumbers`) and country metadata (`pycountry`).
