@@ -56,5 +56,7 @@ Reference: https://github.com/jyesselm/dreem/blob/main/dreem/logger.py
 | `fix_*`     | fix           | Fix a bug (low priority, will be merged into `develop`)                           |
 | `hotfix_*`  | hot fix       | Urgently fix a serious bug (high priority, should be merged directly into `main`) |
 | `docs_*`    | documentation | Add or improve documentation content, multilingual content, etc. to the project   |
+| `test_*`    | test          | Add or modify test-related content                                                |
+| `chore_*`   | chore         | Miscellaneous and configuration information maintenance                           |
 
 - When a branch is merged, it will be renamed: for example, after the `tom/feature_eat_watermelon` branch is merged, it will be renamed to `zarchive/tom/feature_eat_watermelon` to indicate that this branch has completed its mission and should no longer be activated.

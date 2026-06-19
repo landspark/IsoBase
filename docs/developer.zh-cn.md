@@ -56,5 +56,7 @@ Reference: https://github.com/jyesselm/dreem/blob/main/dreem/logger.py
 | `fix_*`     | fix           | 修复某个 bug （低优先级，合并到 `develop` 中）              |
 | `hotfix_*`  | hot fix       | 紧急修复某个严重 bug （高优先级，需要直接合并到 `main` 中） |
 | `docs_*`    | documentation | 给项目添加或完善文档内容、多语言内容等                      |
+| `test_*`    | test          | 添加或修改测试相关内容                                      |
+| `chore_*`   | chore         | 杂项和配置信息维护                                          |
 
 - 当一个分支被合并后，其会被重命名：如 `tom/feature_eat_watermelon` 分支被合并后，它会被重命名为 `zarchive/tom/feature_eat_watermelon`，以表示此分支已经完成其使命，不应再被启用。
