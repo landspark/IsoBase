@@ -4,7 +4,7 @@
 
 ## 简介
 
-`ark.llm` 模块是一个**厂商中立**的大语言模型（LLM）客户端层。它在不同厂商 API 之上暴露一套一致的接口（`ask` / `generate` / `generate_stream`），返回标准化的 `LLMResponse`，并支持多轮工具调用、多模态图像输入、流式输出与扩展思考（extended thinking）。目前已有两个可互换的 provider：OpenAI Chat Completion 兼容（`OpenAIChat`）与 Anthropic Messages 兼容（`AnthropicMessages`）。
+该 `isobase.llm` 模块是一个**厂商中立**的大语言模型（LLM）客户端层。它在不同厂商 API 之上暴露一套一致的接口（`ask` / `generate` / `generate_stream`），返回标准化的 `LLMResponse`，并支持多轮工具调用、多模态图像输入、流式输出与扩展思考（extended thinking）。目前已有两个可互换的 provider：OpenAI Chat Completion 兼容（`OpenAIChat`）与 Anthropic Messages 兼容（`AnthropicMessages`）。
 
 设计目标是：**切换 provider 不需要改动调用代码**——工具以一种中立格式定义一次，按需渲染成各厂商的线上 schema；每个方法都返回同样的 `LLMResponse`。
 
@@ -21,10 +21,10 @@
 
 ## 快速开始
 
-`ark.llm` **不会**在顶层 `ark` 包中重新导出，请直接从 `ark.llm` 导入。
+`isobase.llm` **不会**在顶层 `isobase` 包中重新导出，请直接从 `isobase.llm` 导入。
 
 ```python
-from ark.llm import OpenAIChat, AnthropicMessages
+from isobase.llm import OpenAIChat, AnthropicMessages
 
 # --- OpenAI Chat Completion 兼容 ---
 client = OpenAIChat(api_key="sk-...", default_model="gpt-4o-mini")
@@ -52,7 +52,7 @@ for chunk in client.ask("Count from 1 to 5.", stream=True):
 #### 选项 A：自动生成（默认行为）
 
 ```python
-from ark.llm.tools import FunctionTool
+from isobase.llm.tools import FunctionTool
 
 def get_weather(city: str) -> tuple[bool, str]:
     """Get the current weather for a city.
@@ -71,7 +71,7 @@ weather_tool = FunctionTool(get_weather)
 如果您需要精确控制向大模型暴露的元数据和参数 Schema，或者希望将 JSON-Schema 与 Python 函数签名解耦，可以显式提供 `name`、`description` 和 `parameters_schema` 参数：
 
 ```python
-from ark.llm.tools import FunctionTool
+from isobase.llm.tools import FunctionTool
 
 # 手动显式覆盖元数据和 schema
 weather_tool = FunctionTool(
@@ -120,7 +120,7 @@ print(resp.content)            # 最终回答
 - `providers/anthropic_messages.py` —— `AnthropicMessages`，Anthropic Messages 兼容客户端（按其对接的 Messages API 命名，与 `OpenAIChat` 按 Chat Completion API 命名同理）。
 - `tools/base.py` —— `FunctionTool` 与 `ToolSet`；中立工具表示及执行引擎。
 
-图像辅助函数位于 `ark/core/image_service.py`（`convert_image_to_data_url` 供 OpenAI，`convert_image_to_base64` 供 Anthropic）。
+图像辅助函数位于 `isobase/core/image_service.py`（`convert_image_to_data_url` 供 OpenAI，`convert_image_to_base64` 供 Anthropic）。
 
 手动真实 API 冒烟测试（不由 pytest 收集）位于 `test/llm/live/` —— 把 `.env.example` 复制为 `.env`、填入凭据，运行 `python -m test.llm.live.run_live`。
 

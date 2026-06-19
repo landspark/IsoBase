@@ -16,7 +16,7 @@ import os
 import logging
 import colorlog
 
-class ArkError(Exception):
+class IsoBaseError(Exception):
     pass
 
 def init_logger(name, log_outfile=None, testing_mode=False, start=False) -> logging.Logger:
@@ -64,7 +64,7 @@ def init_logger(name, log_outfile=None, testing_mode=False, start=False) -> logg
 
 def log_error_and_exit(log: logging.Logger, msg):
     log.error(msg)
-    raise ArkError(msg)
+    raise IsoBaseError(msg)
 
 def str_to_log_level(s: str):
     s = s.rstrip().lstrip().lower()

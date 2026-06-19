@@ -55,11 +55,11 @@ For multi-step tasks, state a brief plan:
 
 ## Quick Context (Cheatsheet)
 
-**What ARK is**: Agile Resource Kernel (ARK) is a Python automation framework built around a JSON-driven workflow engine with AI/LLM integration. It is a library (no `setup.py`), so code is imported relative to the repo root rather than pip-installed.
+**What IsoBase is**: Isomorphic Base (IsoBase) is a Python automation framework built around a JSON-driven workflow engine with AI/LLM integration. It is a library (no `setup.py`), so code is imported relative to the repo root rather than pip-installed.
 
 **Environment & Testing**:
 
-- Python 3.13 via conda. Setup: `conda env create -f environment.yml && conda activate ark`
+- Python 3.13 via conda. Setup: `conda env create -f environment.yml && conda activate isobase`
 - _Note: `Pillow` is required but missing from `environment.yml`. Install it manually if needed._
 - Tests use `pytest` and **must** be run from the repo root:
   - `python -m pytest` (all tests)
@@ -75,7 +75,7 @@ For multi-step tasks, state a brief plan:
 
 ## Architectural Boundaries
 
-### `ark/llm` — LLM Client & Tool Engine
+### `isobase/llm` — LLM Client & Tool Engine
 
 This module is strictly separated into Data -> Logic -> Adapters to maintain vendor neutrality.
 
@@ -83,7 +83,7 @@ This module is strictly separated into Data -> Logic -> Adapters to maintain ven
 - **`tools/` (Engine Logic)**: `FunctionTool` and `ToolSet`. Represents local capabilities. `FunctionTool` automatically extracts JSON schemas from Python callable signatures and docstrings (manual overrides allowed). `ToolSet` blindly executes `ToolCall` requests; it has zero knowledge of OpenAI or Anthropic formats.
 - **`providers/` (Translators/Adapters)**: `OpenAIChat` and `AnthropicMessages`. These handle the actual network requests, multi-turn loops, and streaming accumulation. They are responsible for translating the neutral `FunctionTool` and `ToolCall` objects into their specific vendor's JSON dialects right before transmission.
 
-### `ark/workflow` — JSON Workflow Engine
+### `isobase/workflow` — JSON Workflow Engine
 
 A nested tree of execution units driven by JSON "order" files.
 
@@ -94,5 +94,5 @@ A nested tree of execution units driven by JSON "order" files.
 
 ### Other Modules
 
-- **`ark/core`**: OS/file/logging (`colorlog`)/image helpers. Reuse these; do not reinvent them.
-- **`ark/locale`**: Resolves locales from phone numbers (`phonenumbers`) and country metadata (`pycountry`).
+- **`isobase/core`**: OS/file/logging (`colorlog`)/image helpers. Reuse these; do not reinvent them.
+- **`isobase/locale`**: Resolves locales from phone numbers (`phonenumbers`) and country metadata (`pycountry`).

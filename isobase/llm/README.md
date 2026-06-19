@@ -4,7 +4,7 @@
 
 ## Introduction
 
-The `ark.llm` module is a provider-neutral client layer for Large Language Models. It exposes one consistent surface (`ask` / `generate` / `generate_stream`) across different vendor APIs, returns a standardized `LLMResponse`, and supports multi-turn tool calling, multimodal image input, streaming, and extended thinking. Two providers are interchangeable today: OpenAI Chat Completion compatible (`OpenAIChat`) and Anthropic Messages compatible (`AnthropicMessages`).
+The `isobase.llm` module is a provider-neutral client layer for Large Language Models. It exposes one consistent surface (`ask` / `generate` / `generate_stream`) across different vendor APIs, returns a standardized `LLMResponse`, and supports multi-turn tool calling, multimodal image input, streaming, and extended thinking. Two providers are interchangeable today: OpenAI Chat Completion compatible (`OpenAIChat`) and Anthropic Messages compatible (`AnthropicMessages`).
 
 The design goal is that swapping providers should not change calling code: tools are defined once in a neutral format and rendered to each vendor's wire schema on demand; every method returns the same `LLMResponse`.
 
@@ -21,10 +21,10 @@ The design goal is that swapping providers should not change calling code: tools
 
 ## Quick Start
 
-`ark.llm` is **not** re-exported at the top level, so import from `ark.llm` directly.
+`isobase.llm` is **not** re-exported at the top level, so import from `isobase.llm` directly.
 
 ```python
-from ark.llm import OpenAIChat, AnthropicMessages
+from isobase.llm import OpenAIChat, AnthropicMessages
 
 # --- OpenAI Chat Completion compatible ---
 client = OpenAIChat(api_key="sk-...", default_model="gpt-4o-mini")
@@ -52,7 +52,7 @@ Tools are defined once in the neutral format and work with either provider. You 
 #### Option A: Automatic Generation (Default)
 
 ```python
-from ark.llm.tools import FunctionTool
+from isobase.llm.tools import FunctionTool
 
 def get_weather(city: str) -> tuple[bool, str]:
     """Get the current weather for a city.
@@ -71,7 +71,7 @@ weather_tool = FunctionTool(get_weather)
 If you need precise control over the metadata and parameters schema exposed to the LLM—or want to decouple the JSON-Schema from the Python function signature—you can explicitly provide `name`, `description`, and `parameters_schema` to override auto-generation:
 
 ```python
-from ark.llm.tools import FunctionTool
+from isobase.llm.tools import FunctionTool
 
 # Explicitly override metadata and schema manually
 weather_tool = FunctionTool(
@@ -120,7 +120,7 @@ print(resp.content)            # final answer
 - `providers/anthropic_messages.py` — `AnthropicMessages`, the Anthropic Messages compatible client (named after the Messages API, mirroring how `OpenAIChat` is named after the Chat Completion API).
 - `tools/base.py` — `FunctionTool`, `ToolSet`; the neutral tool representation and execution engine.
 
-Image helpers live in `ark/core/image_service.py` (`convert_image_to_data_url` for OpenAI, `convert_image_to_base64` for Anthropic).
+Image helpers live in `isobase/core/image_service.py` (`convert_image_to_data_url` for OpenAI, `convert_image_to_base64` for Anthropic).
 
 Manual live API smoke tests (not run by pytest) live in `test/llm/live/` — copy `.env.example` to `.env`, fill in credentials, and run `python -m test.llm.live.run_live`.
 
