@@ -15,7 +15,7 @@ We welcome automation enthusiasts around the globe to participate in the develop
 
 ## Opening
 
-Isomorphic Base (IsoBase) is a project designed to optimize corporate resource management and operational processes through automation and intelligent technologies. Integrating artificial intelligence, IsoBase supports data-driven decision-making, enhancing operational efficiency and responsiveness.
+Isomorphic Base (IsoBase) is an automation framework designed to optimize corporate resource management and operational processes through automation and intelligent technologies. Integrating artificial intelligence, IsoBase supports data-driven decision-making, enhancing operational efficiency and responsiveness.
 
 ## Expectation
 
