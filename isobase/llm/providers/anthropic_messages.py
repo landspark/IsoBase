@@ -4,7 +4,7 @@
 
 ``AnthropicMessages`` is the concrete provider for the Anthropic Messages API
 (``/v1/messages``) and any Anthropic-compatible gateway (via ``base_url``). It
-mirrors the public surface of :class:`~ark.llm.providers.openai_chat.OpenAIChat`
+mirrors the public surface of :class:`~isobase.llm.providers.openai_chat.OpenAIChat`
 (``generate`` / ``generate_stream`` / ``ask`` /
 ``build_user_message_content``) and returns the standardized ``LLMResponse``,
 so the two providers are interchangeable.
@@ -40,11 +40,11 @@ from anthropic import Anthropic, BadRequestError
 # reassembly; see generate_stream for why we drive it ourselves.
 from anthropic.lib.streaming._messages import accumulate_event
 from PIL import Image as PILImage
-from ark.core.image_service import convert_image_to_base64
-from ark.core.logger import LOGGER
-from ark.llm.entities import LLMResponse, TokenUsage, ToolCall
-from ark.llm.providers.base import BaseLLMClient
-from ark.llm.tools import FunctionTool, ToolSet
+from isobase.core.image_service import convert_image_to_base64
+from isobase.core.logger import LOGGER
+from isobase.llm.entities import LLMResponse, TokenUsage, ToolCall
+from isobase.llm.providers.base import BaseLLMClient
+from isobase.llm.tools import FunctionTool, ToolSet
 
 
 class AnthropicMessages(BaseLLMClient):

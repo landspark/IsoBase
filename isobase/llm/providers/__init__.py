@@ -8,8 +8,8 @@
 """
 
 # Here put the import lib.
-from ark.llm.providers.base import BaseLLMClient
-from ark.llm.providers.openai_chat import OpenAIChat
-from ark.llm.providers.anthropic_messages import AnthropicMessages
+from isobase.llm.providers.base import BaseLLMClient
+from isobase.llm.providers.openai_chat import OpenAIChat
+from isobase.llm.providers.anthropic_messages import AnthropicMessages
 
 __all__ = ["BaseLLMClient", "OpenAIChat", "AnthropicMessages"]

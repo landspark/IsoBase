@@ -2,7 +2,7 @@
 
 ## 简介
 
-`ark.locale` 模块提供了电话号码解析、国家/语言元数据获取以及地区（Locale）解析的工具。该模块设计轻量、高效，并严格遵循 Google Python 代码风格指南。
+该 `isobase.locale` 模块提供了电话号码解析、国家/语言元数据获取以及地区（Locale）解析的工具。该模块设计轻量、高效，并严格遵循 Google Python 代码风格指南。
 
 ## 功能特性
 
@@ -15,7 +15,7 @@
 ## 快速上手
 
 ```python
-from ark import LocaleManager
+from isobase import LocaleManager
 
 # 1. 从手机号解析
 loc = LocaleManager.resolve_from_phone("+8613366889900")

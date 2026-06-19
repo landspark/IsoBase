@@ -37,8 +37,8 @@ from datetime import datetime
 from sqlalchemy.orm.session import Session
 import pickle
 
-from ark.core import LOGGER
-from ark.core.file_system import make_directory, remove_directory
+from isobase.core import LOGGER
+from isobase.core.file_system import make_directory, remove_directory
 
 from .config import (
     UNIT_API_MAPPER, 

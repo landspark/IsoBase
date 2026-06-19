@@ -1,4 +1,4 @@
-name: ark
+name: isobase
 channels:
   - conda-forge
   - defaults

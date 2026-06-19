@@ -8,7 +8,7 @@
 @Contact: https://github.com/SwordJack/
 """
 
-from ark.locale.phone import (
+from isobase.locale.phone import (
     parse_phone_number,
     format_e164,
     format_international,

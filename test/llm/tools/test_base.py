@@ -9,7 +9,7 @@
 
 import pytest
 from typing import Any, Dict, List, Optional
-from ark.llm.tools.base import FunctionTool, ToolSet
+from isobase.llm.tools.base import FunctionTool, ToolSet
 
 def test_function_tool_auto_schema_basic():
     """Tests basic auto-generation of schema from a simple function."""

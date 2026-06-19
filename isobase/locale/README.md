@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The `ark.locale` module provides tools for phone number parsing, country/language metadata retrieval, and locale resolution. It is designed to be lightweight, performant, and compliant with the Google Python Style Guide.
+The `isobase.locale` module provides tools for phone number parsing, country/language metadata retrieval, and locale resolution. It is designed to be lightweight, performant, and compliant with the Google Python Style Guide.
 
 ## Features
 
@@ -15,7 +15,7 @@ The `ark.locale` module provides tools for phone number parsing, country/languag
 ## Quick Start
 
 ```python
-from ark import LocaleManager
+from isobase import LocaleManager
 
 # 1. Resolve from phone number
 loc = LocaleManager.resolve_from_phone("+8613366889900")

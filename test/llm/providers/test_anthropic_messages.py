@@ -20,15 +20,15 @@ from anthropic.types import (
     RawMessageStartEvent,
     RawMessageStopEvent,
 )
-from ark.llm.providers.anthropic_messages import AnthropicMessages
-from ark.llm import LLMResponse
-from ark.llm.tools import FunctionTool, ToolSet
+from isobase.llm.providers.anthropic_messages import AnthropicMessages
+from isobase.llm import LLMResponse
+from isobase.llm.tools import FunctionTool, ToolSet
 
 
 @pytest.fixture
 def mock_anthropic():
     """Fixture to mock the Anthropic client."""
-    with patch("ark.llm.providers.anthropic_messages.Anthropic") as mock:
+    with patch("isobase.llm.providers.anthropic_messages.Anthropic") as mock:
         yield mock
 
 
@@ -120,7 +120,7 @@ def _set_stream(mock_instance, events):
     """Wires client.messages.create(stream=True) to yield raw events."""
     mock_instance.messages.create.return_value = iter(events)
 
-from ark.llm.entities import ToolCall
+from isobase.llm.entities import ToolCall
 
 def test_execute_tool_calls_raw_outputs():
     """Tool execution returns raw outputs now."""
