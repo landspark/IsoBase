@@ -295,6 +295,16 @@ class OpenAIChat(BaseLLMClient):
                 current_messages.extend(tool_messages)
                 self.latest_tool_call_result.update(tool_results)
 
+                # Force a final generation turn without tools to summarize if we hit max rounds
+                if round_idx == self.max_tool_rounds:
+                    final_resp = self.generate(messages=current_messages, tools=None, **kwargs)
+                    if final_resp.success:
+                        total_usage.input_tokens += final_resp.usage.input_tokens
+                        total_usage.output_tokens += final_resp.usage.output_tokens
+                        total_usage.total_tokens += final_resp.usage.total_tokens
+                        final_reasoning += (final_resp.reasoning_content or "")
+                        final_content = final_resp.content
+
             if final_content:
                 current_messages.append({
                     "role": "assistant",
@@ -386,6 +396,19 @@ class OpenAIChat(BaseLLMClient):
                     })
                 current_messages.extend(tool_messages)
                 self.latest_tool_call_result.update(tool_results)
+
+                # Force a final generation turn without tools to summarize if we hit max rounds
+                if round_idx == self.max_tool_rounds:
+                    final_chunk = None
+                    for chunk_resp in self.generate_stream(messages=current_messages, tools=None, **kwargs):
+                        if chunk_resp.usage and chunk_resp.usage.total_tokens > 0:
+                            total_usage.input_tokens += chunk_resp.usage.input_tokens
+                            total_usage.output_tokens += chunk_resp.usage.output_tokens
+                            total_usage.total_tokens += chunk_resp.usage.total_tokens
+                        if chunk_resp.content or chunk_resp.reasoning_content:
+                            final_content += chunk_resp.content
+                            final_reasoning += (chunk_resp.reasoning_content or "")
+                            yield chunk_resp
 
             if final_content:
                 current_messages.append({
@@ -530,6 +553,8 @@ class OpenAIChat(BaseLLMClient):
 
         if content:
             assistant_msg["content"] = content
+        else:
+            assistant_msg["content"] = None
 
         return assistant_msg
 

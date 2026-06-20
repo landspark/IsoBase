@@ -124,6 +124,10 @@ class FunctionTool:
             if param_name in ["self", "cls"]:
                 continue
 
+            # Skip *args and **kwargs
+            if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+                continue
+
             param_type = type_hints.get(param_name, Any)
             json_type = type_mapping.get(param_type, "string") # fallback to string
 
