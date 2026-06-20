@@ -31,7 +31,7 @@ def test_openai_chat_atomic_completion(mock_openai_chat):
     """Tests the atomic generate method."""
     mock_instance = mock_openai_chat.return_value
     m = MagicMock()
-    m.choices = [MagicMock(message=MagicMock(content="Atomic Response", tool_calls=None))]
+    m.choices = [MagicMock(message=MagicMock(content="Atomic Response", tool_calls=None, reasoning_content=None))]
     m.usage = None
     mock_instance.chat.completions.create.return_value = m
     
@@ -47,7 +47,7 @@ def test_openai_chat_ask_success(mock_openai_chat):
     """Tests high-level ask method with a simple response."""
     mock_instance = mock_openai_chat.return_value
     m = MagicMock()
-    m.choices = [MagicMock(message=MagicMock(content="Hello", tool_calls=None))]
+    m.choices = [MagicMock(message=MagicMock(content="Hello", tool_calls=None, reasoning_content=None))]
     m.usage = None
     mock_instance.chat.completions.create.return_value = m
     
@@ -102,14 +102,18 @@ def test_openai_chat_multi_turn_tool(mock_openai_chat):
     m1 = MagicMock()
     tc = MagicMock()
     tc.id = "c1"
+    tc.type = "function"
     tc.function.name = "tool_a"
     tc.function.arguments = '{"x": 1}'
-    m1.choices = [MagicMock(message=MagicMock(content=None, tool_calls=[tc]))]
+    tc.model_dump.return_value = {"id": "c1", "type": "function", "function": {"name": "tool_a", "arguments": '{"x": 1}'}}
+    m1.raw_response = m1
+    m1.choices = [MagicMock(message=MagicMock(content=None, tool_calls=[tc], reasoning_content=None))]
     m1.usage = None
     
     # Round 2: Model gives final answer
     m2 = MagicMock()
-    m2.choices = [MagicMock(message=MagicMock(content="Finished", tool_calls=None))]
+    m2.raw_response = m2
+    m2.choices = [MagicMock(message=MagicMock(content="Finished", tool_calls=None, reasoning_content=None))]
     m2.usage = None
     
     mock_instance.chat.completions.create.side_effect = [m1, m2]

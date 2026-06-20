@@ -23,7 +23,7 @@ from PIL import Image as PILImage
 from isobase.core.logger import LOGGER
 from isobase.llm.entities import LLMResponse, TokenUsage, ToolCall
 from isobase.llm.providers.base import BaseLLMClient
-from isobase.llm.tools import FunctionTool, ToolSet
+from isobase.llm.tools import FunctionTool, SearchTool, ToolSet
 
 
 class OpenAIChat(BaseLLMClient):
@@ -47,7 +47,7 @@ class OpenAIChat(BaseLLMClient):
     def __init__(self,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
-        default_model: str = "gpt-3.5-turbo",
+        default_model: str = "gpt-5.4-mini",
         instructions: str = "",
         messages: List[Dict[str, str]] = None,
         tools: Union[ToolSet, List[FunctionTool], None] = None,
@@ -180,7 +180,7 @@ class OpenAIChat(BaseLLMClient):
 
             delta = chunk.choices[0].delta
             delta_content = delta.content or ""
-            delta_reasoning = getattr(delta, "reasoning_content", "") or ""
+            delta_reasoning = delta.reasoning_content or ""
 
             if delta_content:
                 content += delta_content
@@ -268,24 +268,28 @@ class OpenAIChat(BaseLLMClient):
                 total_usage.input_tokens += response.usage.input_tokens
                 total_usage.output_tokens += response.usage.output_tokens
                 total_usage.total_tokens += response.usage.total_tokens
-                final_reasoning += response.reasoning_content
+                final_reasoning += (response.reasoning_content or "")
 
                 if not response.tool_calls:
                     final_content = response.content
                     break
 
                 # Handle Tool Calls.
-                assistant_msg = {
-                    "role": "assistant",
-                    "tool_calls": [{
-                        "id": tc.id,
-                        "type": "function",
-                        "function": {
-                            "name": tc.name,
-                            "arguments": tc.arguments
-                        }
-                    } for tc in response.tool_calls]
-                }
+                assistant_msg = {"role": "assistant", "tool_calls": []}
+                for tc in response.raw_response.choices[0].message.tool_calls:
+                    if tc.type == "function":
+                        assistant_msg["tool_calls"].append({
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments
+                            }
+                        })
+                    else:
+                        # Pass through native tools (e.g., web_search) verbatim
+                        assistant_msg["tool_calls"].append(tc.model_dump())
+
                 if response.content:
                     assistant_msg["content"] = response.content
                 current_messages.append(assistant_msg)
@@ -376,17 +380,21 @@ class OpenAIChat(BaseLLMClient):
                     break
 
                 # Handle Tool Calls.
-                assistant_msg = {
-                    "role": "assistant",
-                    "tool_calls": [{
-                        "id": tc.id,
-                        "type": "function",
-                        "function": {
-                            "name": tc.name,
-                            "arguments": tc.arguments
-                        }
-                    } for tc in tool_calls]
-                }
+                assistant_msg = {"role": "assistant", "tool_calls": []}
+                for tc in tool_calls:
+                    tc_type = tc.get("type", "function")
+                    if tc_type == "function":
+                        assistant_msg["tool_calls"].append({
+                            "id": tc["id"],
+                            "type": "function",
+                            "function": {
+                                "name": tc["function"]["name"],
+                                "arguments": tc["function"]["arguments"]
+                            }
+                        })
+                    else:
+                        assistant_msg["tool_calls"].append(tc)
+
                 if current_round_content:
                     assistant_msg["content"] = current_round_content
                 current_messages.append(assistant_msg)
@@ -449,14 +457,16 @@ class OpenAIChat(BaseLLMClient):
         content = choice.message.content or ""
         tool_calls = []
         if choice.message.tool_calls:
-            tool_calls = [
-                ToolCall(
-                    id=tc.id,
-                    name=tc.function.name,
-                    arguments=tc.function.arguments
-                ) for tc in choice.message.tool_calls
-            ]
-        reasoning = getattr(choice.message, "reasoning_content", "")
+            for tc in choice.message.tool_calls:
+                if tc.type == "function":
+                    tool_calls.append(
+                        ToolCall(
+                            id=tc.id,
+                            name=tc.function.name,
+                            arguments=tc.function.arguments
+                        )
+                    )
+        reasoning = choice.message.reasoning_content or ""
         usage = self.__extract_usage(completion.usage)
         return content, tool_calls, reasoning, usage
 
@@ -468,14 +478,22 @@ class OpenAIChat(BaseLLMClient):
         """
         if not self.tool_set or not self.tool_set.tools:
             return None
-        return [{
-            "type": "function",
-            "function": {
-                "name": t.name,
-                "description": t.description,
-                "parameters": t.parameters_schema,
-            }
-        } for t in self.tool_set.tools]
+
+        schemas = []
+        for tool in self.tool_set.tools:
+            # Avoid direct import to prevent circular dependency if they're in same tree.
+            if isinstance(tool, SearchTool) and not tool.force_external:
+                schemas.append({"type": "web_search"})
+            else:
+                schemas.append({
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": tool.parameters_schema,
+                    }
+                })
+        return schemas
 
     def __prepare_messages(self, user_content: Union[str, List[Dict[str, Any]]]) -> List[Dict[str, str]]:
         """Helper to prepare the message list for ask loops."""

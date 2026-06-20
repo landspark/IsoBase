@@ -540,6 +540,9 @@ class AnthropicMessages(BaseLLMClient):
             return None
         tools_defs = []
         for t in self.tool_set.tools:
+            # We treat SearchTool identically in Anthropic right now, but
+            # intercepting here if Anthropic adds a specific "web_search" type
+            # block similar to Google/OpenAI in the future.
             schema = t.parameters_schema.copy()
             if "type" not in schema:
                 schema["type"] = "object"
