@@ -57,6 +57,25 @@ class BaseLLMClient(ABC):
         """
         pass
 
+    @abstractmethod
+    def ask(self,
+            prompt: str,
+            images: Optional[List[PILImage.Image]] = None,
+            stream: bool = False,
+            **kwargs: Any) -> Union[LLMResponse, Iterator[LLMResponse]]:
+        """Orchestrates a chat interaction, handling history and tool calls.
+
+        Args:
+            prompt: The user's input text.
+            images: Optional list of images for multimodal input.
+            stream: Whether to use streaming for the interaction.
+            **kwargs: Additional provider-specific parameters.
+
+        Returns:
+            An LLMResponse (non-stream) or Iterator[LLMResponse] (stream).
+        """
+        pass
+
     @classmethod
     def build_user_message_content(
         cls, prompt: str,

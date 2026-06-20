@@ -34,7 +34,7 @@ import sys
 from os import path
 from typing import Any, Dict, Optional
 
-from isobase.llm import AnthropicMessages, OpenAIChat, BaseLLMClient
+from isobase.llm import LLMClient, AnthropicMessages, OpenAIChat
 from isobase.llm.tools import FunctionTool
 
 ENV_PATH = path.join(path.dirname(__file__), ".env")
@@ -108,7 +108,7 @@ def _client_kwargs(env: Dict[str, str], prefix: str) -> Optional[Dict[str, Any]]
     return kwargs
 
 
-def _run_scenarios(label: str, client: Any) -> None:
+def _run_scenarios(label: str, client: LLMClient) -> None:
     """Runs the shared scenario battery against an initialized client."""
     print(f"\n{'=' * 60}\n[{label}] non-streaming ask\n{'=' * 60}")
     resp = client.ask("Reply with exactly: pong", stream=False)
