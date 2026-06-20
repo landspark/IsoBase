@@ -397,7 +397,8 @@ class AnthropicMessages(BaseLLMClient):
                     response.tool_calls)
 
                 tool_blocks = []
-                for tc, output, is_success in zip(response.tool_calls, tool_outputs, tool_results.values()):
+                for tc, output in zip(response.tool_calls, tool_outputs):
+                    is_success = tool_results.get(tc.name, True)
                     block: Dict[str, Any] = {
                         "type": "tool_result",
                         "tool_use_id": tc.id,
@@ -503,7 +504,8 @@ class AnthropicMessages(BaseLLMClient):
                     tool_calls)
 
                 tool_blocks = []
-                for tc, output, is_success in zip(tool_calls, tool_outputs, tool_results.values()):
+                for tc, output in zip(tool_calls, tool_outputs):
+                    is_success = tool_results.get(tc.name, True)
                     block: Dict[str, Any] = {
                         "type": "tool_result",
                         "tool_use_id": tc.id,

@@ -10,17 +10,19 @@ Usage:
     python -m test.llm.live.run_live_agent_search
 
 @File   :   run_live_agent_search.py
-@Created:   2026/06/21 01:00
+@Created:   2026/06/21 03:14
 @Author :   SwordJack
 @Contact:   https://github.com/SwordJack/
 """
 
 import sys
 from os import path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
+from isobase.core.logger import LOGGER
 from isobase.llm import OpenAIChat, AnthropicMessages
 from isobase.llm.tools.search import SearchTool, BraveSearchProvider, TavilySearchProvider
+from isobase.llm.tools.search.base import BaseSearchProvider
 
 ENV_PATH = path.join(path.dirname(__file__), ".env")
 
@@ -51,6 +53,53 @@ def _get_api_key(env: Dict[str, str], env_key: str) -> Optional[str]:
     if not api_key or api_key.endswith("XXXXXX"):
         return None
     return api_key
+
+class DummySearchProvider(BaseSearchProvider):
+    def search(self, query: str, **kwargs: Any) -> List[Dict[str, Any]]:
+        LOGGER.info(f"\n[Trace - DummySearch] Executing query: {query!r}")
+        return [
+            {
+                "title": "Tokyo Weather Mock",
+                "url": "https://mock.weather/tokyo",
+                "snippet": "Weather today: Sunny, 21°C."
+            },
+            {
+                "title": "Tokyo News Mock",
+                "url": "https://mock.news/tokyo",
+                "snippet": "News: IsoBase introduces a fast multi-turn search tool wrapper."
+            }
+        ]
+
+import json
+
+def wrap_client_with_tracer(client_instance: Any):
+    """Intercepts and logs the raw messages sent to and received from the API."""
+    original_generate = client_instance.generate
+
+    def traced_generate(messages: List[Dict[str, Any]], **kwargs: Any) -> Any:
+        LOGGER.info("\n" + "="*40 + " RAW OUTBOUND API REQUEST " + "="*40)
+        LOGGER.info(f"Model: {kwargs.get('model', client_instance.default_model)}")
+        LOGGER.info("Messages Payload:")
+        LOGGER.info(json.dumps(messages, indent=2, ensure_ascii=False, default=str))
+
+        if "tools" in kwargs and kwargs["tools"]:
+            LOGGER.info("Tools Schemas:")
+            LOGGER.info(json.dumps(kwargs["tools"], indent=2, ensure_ascii=False, default=str))
+        LOGGER.info("="*106 + "\n")
+
+        response = original_generate(messages=messages, **kwargs)
+
+        LOGGER.info("\n" + "="*40 + " RAW INBOUND API RESPONSE " + "="*40)
+        LOGGER.info(f"Success: {response.success} | Status Code: {response.status_code}")
+        LOGGER.info(f"Content: {response.content!r}")
+        if response.tool_calls:
+            LOGGER.info("Parsed Tool Calls:")
+            for tc in response.tool_calls:
+                LOGGER.info(f"  - ID: {tc.id} | Name: {tc.name} | Args: {tc.arguments}")
+        LOGGER.info("="*106 + "\n")
+        return response
+
+    client_instance.generate = traced_generate
 
 
 def _run_agent_scenario(llm_client: Any, search_provider: Any, llm_name: str, search_name: str, query: str):
@@ -97,33 +146,34 @@ def main():
     openai_key = _get_api_key(env, "OPENAI_CHAT_API_KEY")
     brave_key = _get_api_key(env, "BRAVE_SEARCH_API_KEY")
 
-    if openai_key and brave_key:
+    if openai_key:
         executed_any = True
         llm = OpenAIChat(
             api_key=openai_key,
             base_url=env.get("OPENAI_CHAT_BASE_URL", "").strip() or None,
             default_model=env.get("OPENAI_CHAT_MODEL", "gpt-3.5-turbo").strip()
         )
-        search = BraveSearchProvider(api_key=brave_key)
-        _run_agent_scenario(llm, search, "OpenAIChat", "BraveSearch", query)
+        wrap_client_with_tracer(llm)
+        search = DummySearchProvider()
+        _run_agent_scenario(llm, search, "OpenAIChat", "DummySearch", query)
     else:
-        print("\n[skip] Skipping OpenAIChat + BraveSearch test due to missing keys in .env.")
+        print("\n[skip] Skipping OpenAIChat test due to missing keys in .env.")
 
     # 2. Test AnthropicMessages + Tavily Search
     anthropic_key = _get_api_key(env, "ANTHROPIC_MESSAGES_API_KEY")
-    tavily_key = _get_api_key(env, "TAVILY_SEARCH_API_KEY")
 
-    if anthropic_key and tavily_key:
+    if anthropic_key:
         executed_any = True
         llm = AnthropicMessages(
             api_key=anthropic_key,
             base_url=env.get("ANTHROPIC_MESSAGES_BASE_URL", "").strip() or None,
             default_model=env.get("ANTHROPIC_MESSAGES_MODEL", "claude-3-haiku-20240307").strip()
         )
-        search = TavilySearchProvider(api_key=tavily_key)
-        _run_agent_scenario(llm, search, "AnthropicMessages", "TavilySearch", query)
+        wrap_client_with_tracer(llm)
+        search = DummySearchProvider()
+        _run_agent_scenario(llm, search, "AnthropicMessages", "DummySearch", query)
     else:
-        print("\n[skip] Skipping AnthropicMessages + TavilySearch test due to missing keys in .env.")
+        print("\n[skip] Skipping AnthropicMessages test due to missing keys in .env.")
 
     if not executed_any:
         print("\nNo tests were executed. Please ensure you have configured pairs of keys in your .env file.")
