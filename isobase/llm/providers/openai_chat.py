@@ -275,23 +275,10 @@ class OpenAIChat(BaseLLMClient):
                     break
 
                 # Handle Tool Calls.
-                assistant_msg = {"role": "assistant", "tool_calls": []}
-                for tc in response.raw_response.choices[0].message.tool_calls:
-                    if tc.type == "function":
-                        assistant_msg["tool_calls"].append({
-                            "id": tc.id,
-                            "type": "function",
-                            "function": {
-                                "name": tc.function.name,
-                                "arguments": tc.function.arguments
-                            }
-                        })
-                    else:
-                        # Pass through native tools (e.g., web_search) verbatim
-                        assistant_msg["tool_calls"].append(tc.model_dump())
-
-                if response.content:
-                    assistant_msg["content"] = response.content
+                assistant_msg = self.__build_assistant_message(
+                    content=response.content,
+                    tool_calls=response.raw_response.choices[0].message.tool_calls
+                )
                 current_messages.append(assistant_msg)
 
                 tool_outputs, tool_results = self.tool_set.execute_tool_calls(
@@ -380,23 +367,10 @@ class OpenAIChat(BaseLLMClient):
                     break
 
                 # Handle Tool Calls.
-                assistant_msg = {"role": "assistant", "tool_calls": []}
-                for tc in tool_calls:
-                    tc_type = tc.get("type", "function")
-                    if tc_type == "function":
-                        assistant_msg["tool_calls"].append({
-                            "id": tc["id"],
-                            "type": "function",
-                            "function": {
-                                "name": tc["function"]["name"],
-                                "arguments": tc["function"]["arguments"]
-                            }
-                        })
-                    else:
-                        assistant_msg["tool_calls"].append(tc)
-
-                if current_round_content:
-                    assistant_msg["content"] = current_round_content
+                assistant_msg = self.__build_assistant_message(
+                    content=current_round_content,
+                    tool_calls=tool_calls
+                )
                 current_messages.append(assistant_msg)
 
                 tool_outputs, tool_results = self.tool_set.execute_tool_calls(
@@ -502,6 +476,62 @@ class OpenAIChat(BaseLLMClient):
             messages.append({"role": "system", "content": self.instructions})
         messages.append({"role": "user", "content": user_content})
         return messages
+
+    def __build_assistant_message(
+        self,
+        content: Optional[str],
+        tool_calls: List[Union[Any, Dict[str, Any]]]
+    ) -> Dict[str, Any]:
+        """Constructs an assistant message containing content and tool calls.
+
+        This method structures the assistant's turn into the exact format required
+        by OpenAI's API so it can be appended to the conversation history
+        (`current_messages` and ultimately `self.messages`) for multi-turn routing.
+        Handles both SDK ChoiceMessageToolCall objects and raw dictionaries.
+
+        Args:
+            content: Text content from the assistant (or None).
+            tool_calls: List of tool call objects or raw dictionaries.
+
+        Returns:
+            The structured assistant message dictionary.
+        """
+        assistant_msg: Dict[str, Any] = {"role": "assistant", "tool_calls": []}
+
+        for tc in tool_calls:
+            if isinstance(tc, dict):
+                # Handle raw dictionary tool calls (from __ask_loop_stream)
+                tc_type = tc.get("type", "function")
+                if tc_type == "function":
+                    assistant_msg["tool_calls"].append({
+                        "id": tc["id"],
+                        "type": "function",
+                        "function": {
+                            "name": tc["function"]["name"],
+                            "arguments": tc["function"]["arguments"]
+                        }
+                    })
+                else:
+                    assistant_msg["tool_calls"].append(tc)
+            else:
+                # Handle SDK ChoiceMessageToolCall objects (from __ask_loop)
+                if tc.type == "function":
+                    assistant_msg["tool_calls"].append({
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments
+                        }
+                    })
+                else:
+                    # Pass through native tools verbatim
+                    assistant_msg["tool_calls"].append(tc.model_dump())
+
+        if content:
+            assistant_msg["content"] = content
+
+        return assistant_msg
 
     def __handle_ask_exception(self, e: Exception) -> LLMResponse:
         """Helper to handle exceptions in ask loops."""
