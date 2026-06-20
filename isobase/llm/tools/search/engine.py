@@ -1,17 +1,17 @@
 #! python3
 # -*- encoding: utf-8 -*-
-"""Search tool integration for LLM capabilities.
+"""Search tool engine integration for LLM capabilities.
 
-@File   :   search.py
-@Created:   2026/06/20 18:33
+@File   :   engine.py
+@Created:   2026/06/20 23:51
 @Author :   SwordJack
 @Contact:   https://github.com/SwordJack/
-
 """
 
 from typing import Any, Callable, Dict, Optional
 
-from isobase.llm.tools.base import FunctionTool
+from ..base import FunctionTool
+from .base import BaseSearchProvider
 
 
 class SearchTool(FunctionTool):
@@ -24,44 +24,53 @@ class SearchTool(FunctionTool):
 
     For providers without native support (e.g., DeepSeek, Anthropic) or when
     `force_external=True` is set, this tool functions as a standard custom function
-    calling tool, executing the provided `mapped_callable` locally.
+    calling tool. It can be instantiated with a concrete `BaseSearchProvider` or a
+    raw `mapped_callable` to execute the search locally.
 
     Attributes:
         force_external: If True, bypasses native provider search and forces the
-                        use of the `mapped_callable` via standard function calling.
+                        use of local execution via standard function calling.
+        provider: An optional `BaseSearchProvider` implementation.
     """
 
     def __init__(self,
+                 provider: Optional[BaseSearchProvider] = None,
                  mapped_callable: Optional[Callable] = None,
                  force_external: bool = False,
-                 name: Optional[str] = None,
+                 name: str = "web_search",
                  description: str = "",
                  parameters_schema: Optional[Dict[str, Any]] = None,
                  tool_function_callable_kwargs: Dict[str, Any] = None):
         """Initializes a SearchTool.
 
         Args:
+            provider: A concrete implementation of `BaseSearchProvider`. If provided,
+                      its `search` method will automatically become the mapped callable.
             mapped_callable: The Python callable to execute if falling back to custom
-                             function calling. Must be provided if `force_external=True`
-                             or if the LLM provider lacks native search support.
+                             function calling. (Ignored if `provider` is passed).
             force_external: Set to True to force external/local search via the mapped
-                            callable, bypassing any native provider search capabilities.
-            name: Override the tool name.
+                            callable or provider, bypassing any native provider search capabilities.
+            name: Override the tool name. Defaults to "web_search".
             description: Override the tool description.
             parameters_schema: Override the auto-generated JSON schema.
             tool_function_callable_kwargs: Static kwargs to pass to the callable.
 
         Raises:
-            ValueError: If `force_external=True` but no `mapped_callable` is provided.
+            ValueError: If `force_external=True` but neither `provider` nor `mapped_callable` is provided.
         """
         self.force_external = force_external
+        self.provider = provider
+
+        # Prioritize the provider's search method if an instance is passed
+        if provider is not None:
+            mapped_callable = provider.search
 
         if force_external and mapped_callable is None:
             raise ValueError(
-                "A `mapped_callable` must be provided when `force_external=True`."
+                "A `provider` or `mapped_callable` must be provided when `force_external=True`."
             )
 
-        # If a callable is provided, initialize standard FunctionTool behavior
+        # If a callable is resolved, initialize standard FunctionTool behavior
         if mapped_callable:
             super().__init__(
                 mapped_callable=mapped_callable,
@@ -74,7 +83,7 @@ class SearchTool(FunctionTool):
             # When no callable is provided, this tool relies purely on native interception.
             # We initialize the base class minimally just to satisfy the schema generation.
             self.mapped_callable = None
-            self.name = name or "web_search"
+            self.name = name
             self.description = description or "Search the web for up-to-date information."
             self.parameters_schema = parameters_schema or {
                 "type": "object",
@@ -103,5 +112,5 @@ class SearchTool(FunctionTool):
         """
         if not self.mapped_callable:
             return ("Error: SearchTool was invoked via local function calling, "
-                    "but no `mapped_callable` was provided during initialization.")
+                    "but no `provider` or `mapped_callable` was provided during initialization.")
         return super().execute(arguments_json)

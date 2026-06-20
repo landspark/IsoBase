@@ -10,15 +10,30 @@
 
 import json
 from isobase.llm.tools.search import SearchTool
+from isobase.llm.tools.search.base import BaseSearchProvider
 from isobase.llm.tools.base import ToolSet
 from isobase.llm.providers.openai_chat import OpenAIChat
 from isobase.llm.providers.anthropic_messages import AnthropicMessages
+
+def test_search_tool_initialization_with_provider():
+    class MockProvider(BaseSearchProvider):
+        def search(self, query: str, **kwargs):
+            return [{"title": f"Provider Result for {query}"}]
+
+    provider = MockProvider()
+    tool = SearchTool(provider=provider, force_external=True)
+    assert tool.force_external is True
+    assert tool.mapped_callable is not None
+    assert tool.name == "web_search"  # Default name when using provider
+
+    result = tool.execute(json.dumps({"query": "test"}))
+    assert result == [{"title": "Provider Result for test"}]
 
 def test_search_tool_initialization_with_callable():
     def mock_search(query: str):
         return f"Results for {query}"
 
-    tool = SearchTool(mapped_callable=mock_search, force_external=True)
+    tool = SearchTool(mapped_callable=mock_search, force_external=True, name="mock_search")
     assert tool.force_external is True
     assert tool.mapped_callable is not None
     assert tool.name == "mock_search"
@@ -36,12 +51,13 @@ def test_search_tool_initialization_without_callable():
     # Executing local callable when there is none should return error msg
     result = tool.execute(json.dumps({"query": "test"}))
     assert "Error: SearchTool was invoked via local function calling" in result
+    assert "but no `provider` or `mapped_callable` was provided" in result
 
 def test_openai_schema_generation():
     tool_native = SearchTool(force_external=False)
 
     def mock_search(query: str): pass
-    tool_custom = SearchTool(mapped_callable=mock_search, force_external=True)
+    tool_custom = SearchTool(mapped_callable=mock_search, force_external=True, name="mock_search")
 
     client = OpenAIChat(api_key="test", tools=ToolSet([tool_native, tool_custom]))
 
@@ -59,7 +75,7 @@ def test_anthropic_schema_generation():
     tool_native = SearchTool(force_external=False)
 
     def mock_search(query: str): pass
-    tool_custom = SearchTool(mapped_callable=mock_search, force_external=True)
+    tool_custom = SearchTool(mapped_callable=mock_search, force_external=True, name="mock_search")
 
     client = AnthropicMessages(api_key="test", tools=ToolSet([tool_native, tool_custom]))
 
