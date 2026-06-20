@@ -11,8 +11,9 @@
 ## 功能特性
 
 - **厂商中立的统一接口**：`OpenAIChat` 与 `AnthropicMessages` 共享相同的公开方法、返回相同的 `LLMResponse`，可直接互换。
-- **中立工具格式与自动 Schema 生成**：单个 `FunctionTool` 可直接从绑定的 Python 函数的签名（Signature）和文档字符串（Docstring）中**自动提取**其 `name`、`description` 和 JSON `parameters_schema`。不把任何一家的格式当作唯一标准，各提供商的客户端在发送请求前自动将中立的 `ToolCall` 即时翻译为自身需要的格式。
-- **多轮工具调用**：`ask()` 运行一个有上限的递归工具调用循环（`max_tool_rounds`），执行 Python 可调用对象并把结果回传给模型。
+- **中立工具格式与自动 Schema 生成**：单个 `FunctionTool` 可直接从绑定的 Python 函数的签名（Signature）和文档字符串（Docstring）中**自动提取**其 `name`、`description` 和 JSON `parameters_schema`。在自动生成期间，它会优雅地跳过不定长参数（`*args`、`**kwargs`）以防止引发模型幻觉。不把任何一家的格式当作唯一标准，各提供商的客户端在发送请求前自动将中立的 `ToolCall` 即时翻译为自身需要的格式。
+- **多轮工具调用编排**：`ask()` 运行一个有上限的递归工具调用循环（`max_tool_rounds`），自动执行 Python 可调用对象并把结果回传给模型。内置了严格的兜底机制，如果在循环触达上限时模型仍在尝试调用工具，框架将强制切断工具并要求模型进行最终的纯文本总结，彻底防止空回复和死循环黑洞。
+- **严苛网关兼容与历史重建**：在重建对话历史时，完美适配要求极为严苛的企业级 API 代理中转站。包括显式保留空的 `content`（使用 `null` 占位），以及精确对齐并拼接 Anthropic 并发输出的 `tool_use` 与 `tool_result` 内容块。
 - **流式与非流式**：每个 provider 都实现了两条路径；流式会先逐块产出文本/思考增量，最后再产出携带工具调用与用量的汇总块。
 - **扩展思考**：通过 `thinking` 开启（如 Anthropic 的 `{"type": "adaptive"}`）；思考文本会进入 `LLMResponse.reasoning_content`。
 - **多模态图像输入**：`build_user_message_content` 可附加 PIL 图像，并渲染为各厂商的图像块格式。
@@ -45,11 +46,19 @@ for chunk in client.ask("Count from 1 to 5.", stream=True):
         print(chunk.content, end="", flush=True)
 ```
 
-### 工具调用
+### 工具调用与联网搜索
 
-工具以中立格式定义一次，对两个 provider 都适用。框架支持直接通过您的 Python 函数的签名和 docstring 自动生成 JSON schema，您也可以手动显式传入这些参数来覆盖自动生成的行为。
+工具以中立格式定义一次，对两个 provider 都适用。你可以把本地自定义的 Python 函数映射为工具，也可以直接使用内置的高级预置工具，比如**双引擎架构的联网搜索工具**。
 
-#### 选项 A：自动生成（默认行为）
+#### 1. 联网搜索工具 (原生搜索 & 自定义兜底)
+
+`IsoBase` 包含一个强大且鲁棒的 `SearchTool`。它会自动适应当前的 LLM 提供商。如果提供商（如 OpenAI、Qwen 百炼）原生支持联网搜索，它会将自身退化为原生的 `{"type": "web_search"}` 格式，由云端大厂代劳搜索；而对于不支持原生搜索的模型，你可以为其挂载 `TavilySearchProvider` 或 `BraveSearchProvider` 等具体实例，它将回退为本地的标准 Function Calling。
+
+详细用法与自定义企业内网搜索接口配置，请参阅专用文档：[`isobase/llm/tools/search/README.zh-cn.md`](./tools/search/README.zh-cn.md)。
+
+#### 2. 自定义本地函数工具
+
+#### 选项 A：自定义工具的自动生成（默认行为）
 
 ```python
 from isobase.llm.tools import FunctionTool
@@ -66,7 +75,7 @@ def get_weather(city: str) -> tuple[bool, str]:
 weather_tool = FunctionTool(get_weather)
 ```
 
-#### 选项 B：手动显式覆盖（显式 Schema）
+#### 选项 B：自定义工具的手动显式覆盖（显式 Schema）
 
 如果您需要精确控制向大模型暴露的元数据和参数 Schema，或者希望将 JSON-Schema 与 Python 函数签名解耦，可以显式提供 `name`、`description` 和 `parameters_schema` 参数：
 
@@ -119,6 +128,7 @@ print(resp.content)            # 最终回答
 - `providers/openai_chat.py` —— `OpenAIChat`，OpenAI Chat Completion 兼容客户端。
 - `providers/anthropic_messages.py` —— `AnthropicMessages`，Anthropic Messages 兼容客户端（按其对接的 Messages API 命名，与 `OpenAIChat` 按 Chat Completion API 命名同理）。
 - `tools/base.py` —— `FunctionTool` 与 `ToolSet`；中立工具表示及执行引擎。
+- `tools/search/` —— 包含双引擎架构的 `SearchTool`、`BaseSearchProvider` 抽象接口以及具体的联网搜索引擎实现。
 
 图像辅助函数位于 `isobase/core/image_service.py`（`convert_image_to_data_url` 供 OpenAI，`convert_image_to_base64` 供 Anthropic）。
 

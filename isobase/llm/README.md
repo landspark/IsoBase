@@ -11,8 +11,9 @@ The design goal is that swapping providers should not change calling code: tools
 ## Features
 
 - **Provider-neutral surface**: `OpenAIChat` and `AnthropicMessages` share the same public methods and return the same `LLMResponse`, so they are drop-in interchangeable.
-- **Neutral tool format with auto-generated schemas**: a single `FunctionTool` can automatically extract its `name`, `description`, and JSON `parameters_schema` directly from the signature and docstring of a mapped Python callable. No vendor format is treated as the canonical one, and providers translate the neutral `ToolCall` on the fly.
-- **Multi-turn tool calling**: `ask()` runs a bounded recursive tool-calling loop (`max_tool_rounds`), executing Python callables and feeding results back to the model.
+- **Neutral tool format with auto-generated schemas**: a single `FunctionTool` can automatically extract its `name`, `description`, and JSON `parameters_schema` directly from the signature and docstring of a mapped Python callable. It gracefully ignores variadic parameters (`*args`, `**kwargs`) to prevent LLM hallucination. No vendor format is treated as the canonical one, and providers translate the neutral `ToolCall` on the fly.
+- **Multi-turn tool calling orchestration**: `ask()` runs a bounded recursive tool-calling loop (`max_tool_rounds`), automatically executing Python callables and feeding results back to the model. Includes a strict fallback mechanism that forces a final plain-text summary if the tool recursion limit is hit, preventing infinite loops and silent blank responses.
+- **Strict proxy resilience**: History reconstruction ensures perfect compliance with stringent enterprise API proxies, preserving explicit `null` contents and perfectly pairing Anthropic's parallel `tool_use` and `tool_result` content blocks.
 - **Streaming and non-streaming**: both paths are implemented for each provider; streaming yields incremental text/reasoning chunks then a final summary carrying tool calls and usage.
 - **Extended thinking**: opt-in via `thinking` (e.g. `{"type": "adaptive"}` for Anthropic); thinking text surfaces into `LLMResponse.reasoning_content`.
 - **Multimodal image input**: `build_user_message_content` attaches PIL images, rendered to each vendor's image block format.
@@ -45,11 +46,19 @@ for chunk in client.ask("Count from 1 to 5.", stream=True):
         print(chunk.content, end="", flush=True)
 ```
 
-### Tool calling
+### Tool calling and Web Search
 
-Tools are defined once in the neutral format and work with either provider. You can let the framework automatically generate the JSON schema from your Python function's signature and docstring, or explicitly provide them to override this behavior.
+Tools are defined once in the neutral format and work with either provider. You can map custom local Python functions, or use out-of-the-box advanced tools like the **Dual-Architecture Web Search**.
 
-#### Option A: Automatic Generation (Default)
+#### 1. Web Search Tool (Native & Custom Fallback)
+
+`IsoBase` includes a robust `SearchTool` that automatically adapts to your provider. If your provider natively supports internet search (e.g. OpenAI, Qwen), the tool converts itself to a native `{"type": "web_search"}` structure. For providers without native internet access (or if you explicitly want to force your own search engine), you can inject a `BaseSearchProvider` like `TavilySearchProvider` or `BraveSearchProvider`.
+
+See the dedicated documentation in [`isobase/llm/tools/search/README.md`](./tools/search/README.md) for detailed configuration.
+
+#### 2. Custom Local Function Tools
+
+#### Option A: Custom Tools with Automatic Generation (Default)
 
 ```python
 from isobase.llm.tools import FunctionTool
@@ -66,7 +75,7 @@ def get_weather(city: str) -> tuple[bool, str]:
 weather_tool = FunctionTool(get_weather)
 ```
 
-#### Option B: Explicit Overrides (Manual Schema)
+#### Option B: Custom Tools with Explicit Overrides (Manual Schema)
 
 If you need precise control over the metadata and parameters schema exposed to the LLM—or want to decouple the JSON-Schema from the Python function signature—you can explicitly provide `name`, `description`, and `parameters_schema` to override auto-generation:
 
@@ -119,6 +128,7 @@ print(resp.content)            # final answer
 - `providers/openai_chat.py` — `OpenAIChat`, the OpenAI Chat Completion compatible client.
 - `providers/anthropic_messages.py` — `AnthropicMessages`, the Anthropic Messages compatible client (named after the Messages API, mirroring how `OpenAIChat` is named after the Chat Completion API).
 - `tools/base.py` — `FunctionTool`, `ToolSet`; the neutral tool representation and execution engine.
+- `tools/search/` — Contains the dual-architecture `SearchTool`, `BaseSearchProvider` and concrete web search provider implementations.
 
 Image helpers live in `isobase/core/image_service.py` (`convert_image_to_data_url` for OpenAI, `convert_image_to_base64` for Anthropic).
 
