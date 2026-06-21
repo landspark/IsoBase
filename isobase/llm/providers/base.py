@@ -14,7 +14,8 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 from PIL import Image as PILImage
 
 from isobase.core.image_service import convert_image_to_data_url
-from isobase.llm.entities import LLMResponse
+from ..entities import LLMResponse
+from ..callbacks import BaseLLMCallback
 
 
 class BaseLLMClient(ABC):
@@ -54,6 +55,27 @@ class BaseLLMClient(ABC):
 
         Yields:
             LLMResponse objects containing incremental content chunks.
+        """
+        pass
+
+    @abstractmethod
+    def ask(self,
+            prompt: str,
+            images: Optional[List[PILImage.Image]] = None,
+            stream: bool = False,
+            callbacks: Optional[List[BaseLLMCallback]] = None,
+            **kwargs: Any) -> Union[LLMResponse, Iterator[LLMResponse]]:
+        """Orchestrates a chat interaction, handling history and tool calls.
+
+        Args:
+            prompt: The user's input text.
+            images: Optional list of images for multimodal input.
+            stream: Whether to use streaming for the interaction.
+            callbacks: Optional list of callback handlers.
+            **kwargs: Additional provider-specific parameters.
+
+        Returns:
+            An LLMResponse (non-stream) or Iterator[LLMResponse] (stream).
         """
         pass
 

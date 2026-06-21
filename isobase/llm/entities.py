@@ -41,6 +41,53 @@ class ToolCall:
 
 
 @dataclass
+class SearchResultItem:
+    """Represents a single standardized search result from a web search provider.
+
+    Attributes:
+        title: The title of the search result page.
+        url: The absolute URL of the page.
+        snippet: A short summary or block of content.
+        raw_content: Optional full-page parsed content or markdown.
+    """
+    title: str
+    url: str
+    snippet: str
+    raw_content: Optional[str] = None
+
+
+@dataclass
+class SearchResult:
+    """Represents the complete standardized outcome of a search provider query.
+
+    Attributes:
+        success: Whether the search operation succeeded.
+        results: A list of SearchResultItem instances.
+        error: Optional error message if the search failed.
+    """
+    success: bool
+    results: List[SearchResultItem] = field(default_factory=list)
+    error: Optional[str] = None
+
+    def __str__(self) -> str:
+        """Standardized string representation optimized for LLM prompt consumption."""
+        if not self.success:
+            return f"Search failed: {self.error}"
+
+        if not self.results:
+            return "No search results found."
+
+        formatted_items = []
+        for idx, item in enumerate(self.results, 1):
+            block = f"[{idx}] {item.title}\nURL: {item.url}\nSnippet: {item.snippet}"
+            if item.raw_content:
+                block += f"\nFull Content:\n{item.raw_content}"
+            formatted_items.append(block)
+
+        return "\n\n---\n\n".join(formatted_items)
+
+
+@dataclass
 class LLMResponse:
     """Structured response from an LLM provider.
 

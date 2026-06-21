@@ -21,9 +21,10 @@ from openai.types.chat import ChatCompletionChunk, ChatCompletion
 from PIL import Image as PILImage
 
 from isobase.core.logger import LOGGER
-from isobase.llm.entities import LLMResponse, TokenUsage, ToolCall
-from isobase.llm.providers.base import BaseLLMClient
-from isobase.llm.tools import FunctionTool, ToolSet
+from .base import BaseLLMClient
+from ..callbacks import BaseLLMCallback
+from ..entities import LLMResponse, TokenUsage, ToolCall
+from ..tools import FunctionTool, SearchTool, ToolSet
 
 
 class OpenAIChat(BaseLLMClient):
@@ -47,7 +48,7 @@ class OpenAIChat(BaseLLMClient):
     def __init__(self,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
-        default_model: str = "gpt-3.5-turbo",
+        default_model: str = "gpt-5.4-mini",
         instructions: str = "",
         messages: List[Dict[str, str]] = None,
         tools: Union[ToolSet, List[FunctionTool], None] = None,
@@ -94,6 +95,7 @@ class OpenAIChat(BaseLLMClient):
             prompt: str,
             images: Optional[List[PILImage.Image]] = None,
             stream: bool = False,
+            callbacks: Optional[List[BaseLLMCallback]] = None,
             **kwargs: Any) -> Union[LLMResponse, Iterator[LLMResponse]]:
         """Orchestrates a chat interaction, handling history and tool calls.
 
@@ -101,15 +103,16 @@ class OpenAIChat(BaseLLMClient):
             prompt (str): The user's input text.
             images (Optional[List[PILImage.Image]]): Optional list of images for multimodal input.
             stream (bool, optional): Whether to use streaming for the interaction. Defaults to False.
+            callbacks: Optional list of callback handlers.
             **kwargs: Additional parameters for the model.
 
         Returns:
             An LLMResponse (non-stream) or Iterator[LLMResponse] (stream).
         """
         if stream:
-            return self.__ask_loop_stream(prompt, images, **kwargs)
+            return self.__ask_loop_stream(prompt, images, callbacks=callbacks, **kwargs)
         else:
-            return self.__ask_loop(prompt, images, **kwargs)
+            return self.__ask_loop(prompt, images, callbacks=callbacks, **kwargs)
 
     def generate(self,
             messages: List[Dict[str, str]],
@@ -180,7 +183,7 @@ class OpenAIChat(BaseLLMClient):
 
             delta = chunk.choices[0].delta
             delta_content = delta.content or ""
-            delta_reasoning = getattr(delta, "reasoning_content", "") or ""
+            delta_reasoning = (delta.reasoning_content or "") if hasattr(delta, "reasoning_content") else ""
 
             if delta_content:
                 content += delta_content
@@ -236,12 +239,14 @@ class OpenAIChat(BaseLLMClient):
     def __ask_loop(self,
                   prompt: str,
                   images: Optional[List[PILImage.Image]] = None,
+                  callbacks: Optional[List[BaseLLMCallback]] = None,
                   **kwargs: Any) -> LLMResponse:
         """Internal loop for non-streaming interaction.
 
         Args:
             prompt: User prompt.
             images: Multimodal inputs.
+            callbacks: Optional list of callback handlers.
             **kwargs: API arguments.
 
         Returns:
@@ -268,30 +273,21 @@ class OpenAIChat(BaseLLMClient):
                 total_usage.input_tokens += response.usage.input_tokens
                 total_usage.output_tokens += response.usage.output_tokens
                 total_usage.total_tokens += response.usage.total_tokens
-                final_reasoning += response.reasoning_content
+                final_reasoning += (response.reasoning_content or "")
 
                 if not response.tool_calls:
                     final_content = response.content
                     break
 
                 # Handle Tool Calls.
-                assistant_msg = {
-                    "role": "assistant",
-                    "tool_calls": [{
-                        "id": tc.id,
-                        "type": "function",
-                        "function": {
-                            "name": tc.name,
-                            "arguments": tc.arguments
-                        }
-                    } for tc in response.tool_calls]
-                }
-                if response.content:
-                    assistant_msg["content"] = response.content
+                assistant_msg = self.__build_assistant_message(
+                    content=response.content,
+                    tool_calls=response.raw_response.choices[0].message.tool_calls
+                )
                 current_messages.append(assistant_msg)
 
                 tool_outputs, tool_results = self.tool_set.execute_tool_calls(
-                    response.tool_calls)
+                    response.tool_calls, callbacks=callbacks)
 
                 tool_messages = []
                 for tc, output in zip(response.tool_calls, tool_outputs):
@@ -303,6 +299,16 @@ class OpenAIChat(BaseLLMClient):
                     })
                 current_messages.extend(tool_messages)
                 self.latest_tool_call_result.update(tool_results)
+
+                # Force a final generation turn without tools to summarize if we hit max rounds
+                if round_idx == self.max_tool_rounds:
+                    final_resp = self.generate(messages=current_messages, tools=None, **kwargs)
+                    if final_resp.success:
+                        total_usage.input_tokens += final_resp.usage.input_tokens
+                        total_usage.output_tokens += final_resp.usage.output_tokens
+                        total_usage.total_tokens += final_resp.usage.total_tokens
+                        final_reasoning += (final_resp.reasoning_content or "")
+                        final_content = final_resp.content
 
             if final_content:
                 current_messages.append({
@@ -324,12 +330,14 @@ class OpenAIChat(BaseLLMClient):
     def __ask_loop_stream(self,
                          prompt: str,
                          images: Optional[List[PILImage.Image]] = None,
+                         callbacks: Optional[List[BaseLLMCallback]] = None,
                          **kwargs: Any) -> Iterator[LLMResponse]:
         """Internal loop for streaming interaction.
 
         Args:
             prompt: User prompt.
             images: Multimodal inputs.
+            callbacks: Optional list of callback handlers.
             **kwargs: API arguments.
 
         Yields:
@@ -376,23 +384,14 @@ class OpenAIChat(BaseLLMClient):
                     break
 
                 # Handle Tool Calls.
-                assistant_msg = {
-                    "role": "assistant",
-                    "tool_calls": [{
-                        "id": tc.id,
-                        "type": "function",
-                        "function": {
-                            "name": tc.name,
-                            "arguments": tc.arguments
-                        }
-                    } for tc in tool_calls]
-                }
-                if current_round_content:
-                    assistant_msg["content"] = current_round_content
+                assistant_msg = self.__build_assistant_message(
+                    content=current_round_content,
+                    tool_calls=tool_calls
+                )
                 current_messages.append(assistant_msg)
 
                 tool_outputs, tool_results = self.tool_set.execute_tool_calls(
-                    tool_calls)
+                    tool_calls, callbacks=callbacks)
 
                 tool_messages = []
                 for tc, output in zip(tool_calls, tool_outputs):
@@ -404,6 +403,19 @@ class OpenAIChat(BaseLLMClient):
                     })
                 current_messages.extend(tool_messages)
                 self.latest_tool_call_result.update(tool_results)
+
+                # Force a final generation turn without tools to summarize if we hit max rounds
+                if round_idx == self.max_tool_rounds:
+                    final_chunk = None
+                    for chunk_resp in self.generate_stream(messages=current_messages, tools=None, **kwargs):
+                        if chunk_resp.usage and chunk_resp.usage.total_tokens > 0:
+                            total_usage.input_tokens += chunk_resp.usage.input_tokens
+                            total_usage.output_tokens += chunk_resp.usage.output_tokens
+                            total_usage.total_tokens += chunk_resp.usage.total_tokens
+                        if chunk_resp.content or chunk_resp.reasoning_content:
+                            final_content += chunk_resp.content
+                            final_reasoning += (chunk_resp.reasoning_content or "")
+                            yield chunk_resp
 
             if final_content:
                 current_messages.append({
@@ -446,17 +458,20 @@ class OpenAIChat(BaseLLMClient):
             A tuple of (content, tool_calls, reasoning, usage).
         """
         choice = completion.choices[0]
-        content = choice.message.content or ""
+        message = choice.message
+        content = message.content or ""
         tool_calls = []
-        if choice.message.tool_calls:
-            tool_calls = [
-                ToolCall(
-                    id=tc.id,
-                    name=tc.function.name,
-                    arguments=tc.function.arguments
-                ) for tc in choice.message.tool_calls
-            ]
-        reasoning = getattr(choice.message, "reasoning_content", "")
+        if message.tool_calls:
+            for tc in message.tool_calls:
+                if tc.type == "function":
+                    tool_calls.append(
+                        ToolCall(
+                            id=tc.id,
+                            name=tc.function.name,
+                            arguments=tc.function.arguments
+                        )
+                    )
+        reasoning = message.reasoning_content if hasattr(message, "reasoning_content") else ""
         usage = self.__extract_usage(completion.usage)
         return content, tool_calls, reasoning, usage
 
@@ -468,14 +483,22 @@ class OpenAIChat(BaseLLMClient):
         """
         if not self.tool_set or not self.tool_set.tools:
             return None
-        return [{
-            "type": "function",
-            "function": {
-                "name": t.name,
-                "description": t.description,
-                "parameters": t.parameters_schema,
-            }
-        } for t in self.tool_set.tools]
+
+        schemas = []
+        for tool in self.tool_set.tools:
+            # Avoid direct import to prevent circular dependency if they're in same tree.
+            if isinstance(tool, SearchTool) and not tool.force_external:
+                schemas.append({"type": "web_search"})
+            else:
+                schemas.append({
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": tool.parameters_schema,
+                    }
+                })
+        return schemas
 
     def __prepare_messages(self, user_content: Union[str, List[Dict[str, Any]]]) -> List[Dict[str, str]]:
         """Helper to prepare the message list for ask loops."""
@@ -484,6 +507,92 @@ class OpenAIChat(BaseLLMClient):
             messages.append({"role": "system", "content": self.instructions})
         messages.append({"role": "user", "content": user_content})
         return messages
+
+    def __build_assistant_message(
+        self,
+        content: Optional[str],
+        tool_calls: List[Union[Any, Dict[str, Any]]]
+    ) -> Dict[str, Any]:
+        """Constructs an assistant message containing content and tool calls.
+
+        This method structures the assistant's turn into the exact format required
+        by OpenAI's API (and strict enterprise proxies) so it can be appended to
+        the conversation history for multi-turn routing.
+
+        Due to the differences in how streaming and non-streaming responses are
+        processed, this method acts as a universal compatibility layer that handles
+        three distinct types of tool call representations:
+
+        1. `dict`: Raw dictionaries typically generated during mid-stream accumulation.
+        2. `ToolCall`: IsoBase's provider-neutral dataclass. Yielded at the end of
+           `generate_stream` (in `__ask_loop_stream`). Since it is provider-neutral,
+           it lacks OpenAI-specific fields like `type`, so we manually inject `"type": "function"`.
+        3. `ChoiceMessageToolCall`: Native OpenAI SDK objects returned in non-streaming
+           (`__ask_loop`). It uses `getattr` for safe access and `model_dump()` to
+           preserve built-in native tools (like `web_search`) verbatim.
+
+        Args:
+            content: Text content from the assistant (or None).
+            tool_calls: List of tool call objects (SDK or ToolCall) or raw dictionaries.
+
+        Returns:
+            The structured assistant message dictionary.
+        """
+        assistant_msg: Dict[str, Any] = {"role": "assistant", "tool_calls": []}
+
+        for tc in tool_calls:
+            # Case 1: Raw dictionary (e.g., from mid-stream accumulation)
+            if isinstance(tc, dict):
+                tc_type = tc.get("type", "function")
+                if tc_type == "function":
+                    assistant_msg["tool_calls"].append({
+                        "id": tc["id"],
+                        "type": "function",
+                        "function": {
+                            "name": tc["function"]["name"],
+                            "arguments": tc["function"]["arguments"]
+                        }
+                    })
+                else:
+                    # Pass through built-in tools that were streamed as dicts
+                    assistant_msg["tool_calls"].append(tc)
+
+            # Case 2: IsoBase neutral dataclass (e.g., from generate_stream final yield)
+            # Lacks the '.type' attribute, so we format it explicitly as a standard function.
+            elif isinstance(tc, ToolCall):
+                assistant_msg["tool_calls"].append({
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.name,
+                        "arguments": tc.arguments
+                    }
+                })
+
+            # Case 3: Native OpenAI SDK Object (e.g., from non-streaming completions)
+            else:
+                if getattr(tc, "type", "") == "function":
+                    assistant_msg["tool_calls"].append({
+                        "id": getattr(tc, "id", ""),
+                        "type": "function",
+                        "function": {
+                            "name": getattr(tc.function, "name", ""),
+                            "arguments": getattr(tc.function, "arguments", "")
+                        }
+                    })
+                else:
+                    # Pass through built-in tools (like web_search) verbatim using model_dump
+                    if hasattr(tc, "model_dump"):
+                        assistant_msg["tool_calls"].append(tc.model_dump())
+                    else:
+                        assistant_msg["tool_calls"].append(tc)
+
+        if content:
+            assistant_msg["content"] = content
+        else:
+            assistant_msg["content"] = None
+
+        return assistant_msg
 
     def __handle_ask_exception(self, e: Exception) -> LLMResponse:
         """Helper to handle exceptions in ask loops."""

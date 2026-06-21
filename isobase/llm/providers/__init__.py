@@ -12,4 +12,7 @@ from isobase.llm.providers.base import BaseLLMClient
 from isobase.llm.providers.openai_chat import OpenAIChat
 from isobase.llm.providers.anthropic_messages import AnthropicMessages
 
-__all__ = ["BaseLLMClient", "OpenAIChat", "AnthropicMessages"]
+# 现代 Python 3.12+ 的类型别名写法
+type LLMClient = BaseLLMClient
+
+__all__ = ["BaseLLMClient", "LLMClient", "OpenAIChat", "AnthropicMessages"]

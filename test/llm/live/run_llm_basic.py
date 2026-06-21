@@ -12,9 +12,9 @@ Usage:
          cp test/llm/live/.env.example test/llm/live/.env
        Then edit test/llm/live/.env.
     2. Run from the repo root (so the ``isobase`` package is importable):
-         python -m test.llm.live.run_live          # both providers, all scenarios
-         python -m test.llm.live.run_live openai    # only the openai section
-         python -m test.llm.live.run_live anthropic # only the anthropic section
+         python -m test.llm.live.run_llm_basic          # both providers, all scenarios
+         python -m test.llm.live.run_llm_basic openai    # only the openai section
+         python -m test.llm.live.run_llm_basic anthropic # only the anthropic section
 
 Each provider section runs: non-streaming ask, streaming ask, and a one-tool
 round trip. Leave a provider's API_KEY blank/absent in .env to skip it.
@@ -23,7 +23,7 @@ Expected .env variables (see .env.example):
     OPENAI_CHAT_BASE_URL / OPENAI_CHAT_API_KEY / OPENAI_CHAT_MODEL
     ANTHROPIC_MESSAGES_BASE_URL / ANTHROPIC_MESSAGES_API_KEY / ANTHROPIC_MESSAGES_MODEL
 
-@File   :   run_live.py
+@File   :   run_llm_basic.py
 @Created:   2026/06/07 01:00
 @Author :   SwordJack
 @Contact:   https://github.com/SwordJack/
@@ -34,7 +34,7 @@ import sys
 from os import path
 from typing import Any, Dict, Optional
 
-from isobase.llm import AnthropicMessages, OpenAIChat, BaseLLMClient
+from isobase.llm import LLMClient, AnthropicMessages, OpenAIChat
 from isobase.llm.tools import FunctionTool
 
 ENV_PATH = path.join(path.dirname(__file__), ".env")
@@ -108,7 +108,7 @@ def _client_kwargs(env: Dict[str, str], prefix: str) -> Optional[Dict[str, Any]]
     return kwargs
 
 
-def _run_scenarios(label: str, client: Any) -> None:
+def _run_scenarios(label: str, client: LLMClient) -> None:
     """Runs the shared scenario battery against an initialized client."""
     print(f"\n{'=' * 60}\n[{label}] non-streaming ask\n{'=' * 60}")
     resp = client.ask("Reply with exactly: pong", stream=False)
