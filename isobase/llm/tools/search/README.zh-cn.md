@@ -67,18 +67,22 @@ print(response.content)
 
 ```python
 from typing import Any, Dict, List
+from isobase.llm.entities import SearchResult, SearchResultItem
 from isobase.llm.tools.search import BaseSearchProvider, SearchTool
 
 class CorporateWikiSearchProvider(BaseSearchProvider):
-    def search(self, query: str, **kwargs: Any) -> List[Dict[str, Any]]:
+    def search(self, query: str, **kwargs: Any) -> SearchResult:
         # 在这里写你请求内网数据库或知识库的代码
-        return [
-            {
-                "title": "公司内部远程办公规定",
-                "url": "https://wiki.corp.local/policy",
-                "snippet": "关于2026年的员工差旅与打卡要求..."
-            }
-        ]
+        return SearchResult(
+            success=True,
+            results=[
+                SearchResultItem(
+                    title="公司内部远程办公规定",
+                    url="https://wiki.corp.local/policy",
+                    snippet="关于2026年的员工差旅与打卡要求..."
+                )
+            ]
+        )
 
 # 把你的内网知识库包装成工具交给大模型！
 internal_search = SearchTool(provider=CorporateWikiSearchProvider(), force_external=True)

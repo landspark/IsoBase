@@ -67,18 +67,22 @@ To inject a custom search backend (e.g., querying your internal company database
 
 ```python
 from typing import Any, Dict, List
+from isobase.llm.entities import SearchResult, SearchResultItem
 from isobase.llm.tools.search import BaseSearchProvider, SearchTool
 
 class CorporateWikiSearchProvider(BaseSearchProvider):
-    def search(self, query: str, **kwargs: Any) -> List[Dict[str, Any]]:
+    def search(self, query: str, **kwargs: Any) -> SearchResult:
         # Your custom logic to query an internal database
-        return [
-            {
-                "title": "Internal Company Policy",
-                "url": "https://wiki.corp.local/policy",
-                "snippet": "Our remote work policy..."
-            }
-        ]
+        return SearchResult(
+            success=True,
+            results=[
+                SearchResultItem(
+                    title="Internal Company Policy",
+                    url="https://wiki.corp.local/policy",
+                    snippet="Our remote work policy..."
+                )
+            ]
+        )
 
 # Inject it into the tool!
 internal_search = SearchTool(provider=CorporateWikiSearchProvider(), force_external=True)

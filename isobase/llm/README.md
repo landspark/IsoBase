@@ -46,7 +46,7 @@ for chunk in client.ask("Count from 1 to 5.", stream=True):
         print(chunk.content, end="", flush=True)
 ```
 
-### Tool calling and Web Search
+### Tool calling, Web Search, and Callbacks
 
 Tools are defined once in the neutral format and work with either provider. You can map custom local Python functions, or use out-of-the-box advanced tools like the **Dual-Architecture Web Search**.
 
@@ -112,7 +112,25 @@ print(resp.content)                       # final answer after the tool round
 print(client.latest_tool_call_result)     # {'get_weather': True}
 ```
 
-### Extended thinking (Anthropic)
+#### 3. Execution Callbacks (Tracking Progress)
+
+To provide real-time updates to a frontend (e.g., "Searching the web...", "Found 5 results"), you can pass custom callback handlers to any `ask` or `generate_stream` method.
+
+```python
+from isobase.llm.callbacks import BaseLLMCallback
+from typing import Any, Dict
+
+class MyUIUpdater(BaseLLMCallback):
+    def on_tool_start(self, tool_name: str, arguments: Dict[str, Any]) -> None:
+        if tool_name == "web_search":
+            print(f"[UI Event] 🔍 Searching the web for: {arguments.get('query')}...")
+
+    def on_tool_end(self, tool_name: str, result: Any) -> None:
+        if tool_name == "web_search" and getattr(result, "success", False):
+            print(f"[UI Event] ✨ Search finished. Found {len(result.results)} results.")
+
+client.ask("Latest news in Tokyo", callbacks=[MyUIUpdater()])
+```
 
 ```python
 client = AnthropicMessages(api_key="sk-ant-...", thinking={"type": "adaptive"})

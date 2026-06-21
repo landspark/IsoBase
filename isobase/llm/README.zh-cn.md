@@ -112,7 +112,28 @@ print(resp.content)                       # 工具轮之后的最终回答
 print(client.latest_tool_call_result)     # {'get_weather': True}
 ```
 
-### 扩展思考（Anthropic）
+#### 3. 执行回调与进度监听 (Callbacks)
+
+如果你需要在前端 UI 实时显示工具的执行状态（例如“正在搜索网络…”、“找到 5 条结果”），你可以将实现了 `BaseLLMCallback` 协议的实例传入 `ask` 或 `generate_stream` 方法。
+
+```python
+from isobase.llm.callbacks import BaseLLMCallback
+from typing import Any, Dict
+
+class MyUIUpdater(BaseLLMCallback):
+    def on_tool_start(self, tool_name: str, arguments: Dict[str, Any]) -> None:
+        if tool_name == "web_search":
+            print(f"[UI 更新] 🔍 正在全网搜索：{arguments.get('query')}...")
+
+    def on_tool_end(self, tool_name: str, result: Any) -> None:
+        # 对于内置的搜索工具，result 是一个强类型的 SearchResult 对象
+        if tool_name == "web_search" and getattr(result, "success", False):
+            print(f"[UI 更新] ✨ 搜索完毕。共找到 {len(result.results)} 条结果。")
+
+client.ask("东京的最新新闻", callbacks=[MyUIUpdater()])
+```
+
+### 4. 扩展思考（Anthropic）
 
 ```python
 client = AnthropicMessages(api_key="sk-ant-...", thinking={"type": "adaptive"})

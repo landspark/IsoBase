@@ -15,6 +15,7 @@ Usage:
 @Contact:   https://github.com/SwordJack/
 """
 
+import json
 import sys
 from os import path
 from typing import Any, Dict, List, Optional
@@ -74,8 +75,6 @@ class DummySearchProvider(BaseSearchProvider):
                 )
             ]
         )
-
-import json
 
 def wrap_client_with_tracer(client_instance: Any):
     """Intercepts and logs the raw messages sent to and received from the API."""
