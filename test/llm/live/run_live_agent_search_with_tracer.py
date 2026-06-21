@@ -21,7 +21,9 @@ from typing import Any, Dict, List, Optional
 
 from isobase.core.logger import LOGGER
 from isobase.llm import OpenAIChat, AnthropicMessages
+from isobase.llm.entities import SearchResultItem
 from isobase.llm.tools.search import SearchTool, BraveSearchProvider, TavilySearchProvider
+from isobase.llm.entities import SearchResult
 from isobase.llm.tools.search.base import BaseSearchProvider
 
 ENV_PATH = path.join(path.dirname(__file__), ".env")
@@ -55,20 +57,23 @@ def _get_api_key(env: Dict[str, str], env_key: str) -> Optional[str]:
     return api_key
 
 class DummySearchProvider(BaseSearchProvider):
-    def search(self, query: str, **kwargs: Any) -> List[Dict[str, Any]]:
+    def search(self, query: str, **kwargs: Any) -> SearchResult:
         LOGGER.info(f"\n[Trace - DummySearch] Executing query: {query!r}")
-        return [
-            {
-                "title": "Tokyo Weather Mock",
-                "url": "https://mock.weather/tokyo",
-                "snippet": "Weather today: Sunny, 21°C."
-            },
-            {
-                "title": "Tokyo News Mock",
-                "url": "https://mock.news/tokyo",
-                "snippet": "News: IsoBase introduces a fast multi-turn search tool wrapper."
-            }
-        ]
+        return SearchResult(
+            success=True,
+            results=[
+                SearchResultItem(
+                    title="Tokyo Weather Mock",
+                    url="https://mock.weather/tokyo",
+                    snippet="Weather today: Sunny, 21°C."
+                ),
+                SearchResultItem(
+                    title="Tokyo News Mock",
+                    url="https://mock.news/tokyo",
+                    snippet="News: IsoBase introduces a fast multi-turn search tool wrapper."
+                )
+            ]
+        )
 
 import json
 

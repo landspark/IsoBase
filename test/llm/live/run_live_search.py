@@ -96,25 +96,24 @@ def _run_provider_search(label: str, provider: BaseSearchProvider) -> None:
     else:
         results = provider.search(query, max_results=3, include_raw_content=True)
 
-    if not results:
+    if not results.success:
+        print(f"Status: Failed\nDetails: {results.error}")
+        return
+
+    if not results.results:
         print("Status: Success (No results returned)")
         return
 
-    # Check for library-level error outputs captured in the list
-    if len(results) == 1 and "error" in results[0]:
-        print(f"Status: Failed\nDetails: {results[0]['error']}")
-        return
-
-    print(f"Status: Success ({len(results)} results retrieved)\n")
-    for idx, item in enumerate(results, 1):
+    print(f"Status: Success ({len(results.results)} results retrieved)\n")
+    for idx, item in enumerate(results.results, 1):
         print(f"Result #{idx}:")
-        print(f"  Title:   {item.get('title')}")
-        print(f"  URL:     {item.get('url')}")
-        snippet = item.get("snippet", "")
+        print(f"  Title:   {item.title}")
+        print(f"  URL:     {item.url}")
+        snippet = item.snippet or ""
         # Standardize representation to handle snippet vs content keys
         print(f"  Snippet: {snippet[:150].strip()}..." if len(snippet) > 150 else f"  Snippet: {snippet}")
-        if "raw_content" in item:
-            raw = item["raw_content"] or ""
+        if item.raw_content:
+            raw = item.raw_content
             print(f"  Raw:     {raw[:150].strip()}..." if len(raw) > 150 else f"  Raw:     {raw}")
         print()
 

@@ -90,7 +90,7 @@ def _run_agent_scenario(llm_client: Any, search_provider: Any, llm_name: str, se
 
 def main():
     env = _load_env()
-    query = "What is the current weather in Tokyo today, and what are the major news headlines there right now?"
+    query = "What is the current weather in Shanghai today, and what are the major news headlines there right now?"
     executed_any = False
 
     # 1. Test OpenAIChat + Brave Search

@@ -31,9 +31,15 @@ def test_brave_search_provider_success():
 
         results = provider.search("test query", count=2)
 
-        assert len(results) == 2
-        assert results[0] == {"title": "Brave 1", "url": "https://brave.com/1", "snippet": "Snippet 1"}
-        assert results[1] == {"title": "Brave 2", "url": "https://brave.com/2", "snippet": "Snippet 2"}
+        assert results.success is True
+        assert len(results.results) == 2
+        assert results.results[0].title == "Brave 1"
+        assert results.results[0].url == "https://brave.com/1"
+        assert results.results[0].snippet == "Snippet 1"
+
+        assert results.results[1].title == "Brave 2"
+        assert results.results[1].url == "https://brave.com/2"
+        assert results.results[1].snippet == "Snippet 2"
 
         mock_instance.get.assert_called_once_with(
             "https://api.search.brave.com/res/v1/web/search",
@@ -50,9 +56,8 @@ def test_brave_search_provider_error():
 
         results = provider.search("test query")
 
-        assert len(results) == 1
-        assert "error" in results[0]
-        assert "Brave Search failed: Network Error" in results[0]["error"]
+        assert results.success is False
+        assert results.error == "Brave Search failed: Network Error"
 
 
 def test_tavily_search_provider_success():
@@ -70,8 +75,12 @@ def test_tavily_search_provider_success():
 
         results = provider.search("test query", include_raw_content=True)
 
-        assert len(results) == 1
-        assert results[0] == {"title": "Tavily 1", "url": "https://tavily.com/1", "snippet": "Snippet 1", "raw_content": "Raw 1"}
+        assert results.success is True
+        assert len(results.results) == 1
+        assert results.results[0].title == "Tavily 1"
+        assert results.results[0].url == "https://tavily.com/1"
+        assert results.results[0].snippet == "Snippet 1"
+        assert results.results[0].raw_content == "Raw 1"
 
         mock_tavily_client.assert_called_once_with(api_key="test-key")
         mock_client_instance.search.assert_called_once_with(

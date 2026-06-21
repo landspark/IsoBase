@@ -2,16 +2,24 @@
 # -*- coding: utf-8 -*-
 from isobase.llm.providers import BaseLLMClient, LLMClient, OpenAIChat, AnthropicMessages
 from isobase.llm.tools import FunctionTool, ToolSet
-from isobase.llm.entities import TokenUsage, LLMResponse, ToolCall
+from isobase.llm.entities import (
+    LLMResponse,
+    SearchResult,
+    SearchResultItem,
+    TokenUsage,
+    ToolCall,
+)
 
 __all__ = [
-    "BaseLLMClient",
-    "LLMClient",
-    "OpenAIChat",
     "AnthropicMessages",
+    "BaseLLMClient",
     "FunctionTool",
-    "ToolSet",
-    "TokenUsage",
+    "LLMClient",
     "LLMResponse",
-    "ToolCall"
+    "OpenAIChat",
+    "SearchResult",
+    "SearchResultItem",
+    "TokenUsage",
+    "ToolCall",
+    "ToolSet",
 ]

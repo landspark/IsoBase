@@ -12,6 +12,7 @@ import httpx
 from typing import Any, Dict, List, Optional
 from tavily import TavilyClient
 
+from ...entities import SearchResult, SearchResultItem
 from .base import BaseSearchProvider
 
 
@@ -31,7 +32,7 @@ class BraveSearchProvider(BaseSearchProvider):
         self.api_key = api_key
         self.endpoint = "https://api.search.brave.com/res/v1/web/search"
 
-    def search(self, query: str, count: int = 5, **kwargs: Any) -> List[Dict[str, Any]]:
+    def search(self, query: str, count: int = 5, **kwargs: Any) -> SearchResult:
         """Executes a search query against the Brave Search API.
 
         Args:
@@ -40,7 +41,7 @@ class BraveSearchProvider(BaseSearchProvider):
             **kwargs: Extra parameters to pass to the Brave Search API.
 
         Returns:
-            A list of dictionaries containing title, url, and snippet.
+            A SearchResult containing title, url, and snippet.
         """
         headers = {
             "Accept": "application/json",
@@ -54,18 +55,18 @@ class BraveSearchProvider(BaseSearchProvider):
                 response.raise_for_status()
                 data = response.json()
 
-            results = []
+            items = []
             if "web" in data and "results" in data["web"]:
                 for item in data["web"]["results"]:
-                    results.append({
-                        "title": item.get("title", ""),
-                        "url": item.get("url", ""),
-                        "snippet": item.get("description", "")
-                    })
-            return results
+                    items.append(SearchResultItem(
+                        title=item.get("title", ""),
+                        url=item.get("url", ""),
+                        snippet=item.get("description", "")
+                    ))
+            return SearchResult(success=True, results=items)
 
         except Exception as e:
-            return [{"error": f"Brave Search failed: {str(e)}"}]
+            return SearchResult(success=False, error=f"Brave Search failed: {str(e)}")
 
 
 class TavilySearchProvider(BaseSearchProvider):
@@ -83,7 +84,7 @@ class TavilySearchProvider(BaseSearchProvider):
         """
         self.api_key = api_key
 
-    def search(self, query: str, search_depth: str = "basic", max_results: int = 5, include_raw_content: bool = True, **kwargs: Any) -> List[Dict[str, Any]]:
+    def search(self, query: str, search_depth: str = "basic", max_results: int = 5, include_raw_content: bool = True, **kwargs: Any) -> SearchResult:
         """Executes a search query against the Tavily API.
 
         Args:
@@ -94,7 +95,7 @@ class TavilySearchProvider(BaseSearchProvider):
             **kwargs: Additional arguments for the TavilyClient.
 
         Returns:
-            A list of search results.
+            A SearchResult containing the search items.
         """
         try:
             client = TavilyClient(api_key=self.api_key)
@@ -106,18 +107,16 @@ class TavilySearchProvider(BaseSearchProvider):
                 **kwargs
             )
 
-            results = []
+            items = []
             for item in response.get("results", []):
-                result_entry = {
-                    "title": item.get("title", ""),
-                    "url": item.get("url", ""),
-                    "snippet": item.get("content", "")
-                }
-                if include_raw_content and "raw_content" in item:
-                    result_entry["raw_content"] = item["raw_content"]
-                results.append(result_entry)
+                items.append(SearchResultItem(
+                    title=item.get("title", ""),
+                    url=item.get("url", ""),
+                    snippet=item.get("content", ""),
+                    raw_content=item.get("raw_content") if include_raw_content else None
+                ))
 
-            return results
+            return SearchResult(success=True, results=items)
 
         except Exception as e:
-            return [{"error": f"Tavily Search failed: {str(e)}"}]
+            return SearchResult(success=False, error=f"Tavily Search failed: {str(e)}")

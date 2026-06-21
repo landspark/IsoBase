@@ -9,7 +9,9 @@
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any
+
+from ...entities import SearchResult
 
 
 class BaseSearchProvider(ABC):
@@ -20,7 +22,7 @@ class BaseSearchProvider(ABC):
     """
 
     @abstractmethod
-    def search(self, query: str, **kwargs: Any) -> List[Dict[str, Any]]:
+    def search(self, query: str, **kwargs: Any) -> SearchResult:
         """Executes a search query.
 
         Args:
@@ -28,7 +30,6 @@ class BaseSearchProvider(ABC):
             **kwargs: Extra parameters (e.g., limit, depth, region) supported by the provider.
 
         Returns:
-            A list of dictionary objects representing the search results.
-            Standardized format typically includes 'title', 'url', and 'snippet' or 'content'.
+            A SearchResult object containing standardized results or error.
         """
         pass
