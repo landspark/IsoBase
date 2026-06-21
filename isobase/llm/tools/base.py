@@ -21,7 +21,8 @@ import inspect
 import re
 from typing import Any, Callable, Dict, List, Optional, Tuple, get_type_hints
 
-from isobase.llm.entities import ToolCall
+from ..callbacks import BaseLLMCallback, CallbackManager
+from ..entities import ToolCall
 
 class FunctionTool:
     """A provider-neutral tool the LLM can call to perform actions.
@@ -188,8 +189,7 @@ class ToolSet():
         """Initializes a ToolSet instance."""
         self.tools = tools or []
 
-    def __execute_one(self, func_name: str,
-                     arguments_json: str) -> Tuple[bool, Any]:
+    def __execute_one(self, func_name: str, arguments_json: str, callbacks: Optional[List[BaseLLMCallback]] = None) -> Tuple[bool, Any]:
         """Executes a single named tool with the given JSON arguments.
 
         This is the provider-neutral execution core shared by all
@@ -198,6 +198,7 @@ class ToolSet():
         Args:
             func_name: The name of the tool to execute.
             arguments_json: A JSON string of arguments from the LLM.
+            callbacks: Optional list of callback handlers.
 
         Returns:
             A tuple of ``(is_success, tool_output)``. ``tool_output`` is the
@@ -207,19 +208,37 @@ class ToolSet():
         if tool is None:
             return False, f"Tool '{func_name}' not found."
 
+        parsed_args = {}
+        try:
+            parsed_args = loads(arguments_json)
+        except Exception:
+            pass
+
+        # Late import to prevent circular dependencies
+        cb_manager = CallbackManager(callbacks)
+
+        cb_manager.on_tool_start(func_name, parsed_args)
+
         result = tool.execute(arguments_json)
+
         # Handle (is_success, content) tuple or raw content.
         if isinstance(result, tuple) and len(result) == 2:
-            return result[0], result[1]
-        return True, result
+            is_success, tool_output = result[0], result[1]
+        else:
+            is_success, tool_output = True, result
+
+        cb_manager.on_tool_end(func_name, tool_output)
+
+        return is_success, tool_output
 
     def execute_tool_calls(
-        self, tool_calls: List[ToolCall]
+        self, tool_calls: List[ToolCall], callbacks: Optional[List[BaseLLMCallback]] = None
     ) -> Tuple[List[Any], Dict[str, bool]]:
         """Executes a list of tool calls.
 
         Args:
             tool_calls: A list of ToolCall objects to execute.
+            callbacks: Optional list of callback handlers.
 
         Returns:
             A tuple containing:
@@ -230,7 +249,7 @@ class ToolSet():
         latest_results = {}
 
         for tc in tool_calls:
-            is_success, tool_output = self.__execute_one(tc.name, tc.arguments)
+            is_success, tool_output = self.__execute_one(tc.name, tc.arguments, callbacks=callbacks)
             latest_results[tc.name] = is_success
             results.append(tool_output)
 

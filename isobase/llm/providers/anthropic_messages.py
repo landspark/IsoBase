@@ -40,11 +40,14 @@ from anthropic import Anthropic, BadRequestError
 # reassembly; see generate_stream for why we drive it ourselves.
 from anthropic.lib.streaming._messages import accumulate_event
 from PIL import Image as PILImage
+
 from isobase.core.image_service import convert_image_to_base64
 from isobase.core.logger import LOGGER
-from isobase.llm.entities import LLMResponse, TokenUsage, ToolCall
-from isobase.llm.providers.base import BaseLLMClient
-from isobase.llm.tools import FunctionTool, ToolSet
+
+from .base import BaseLLMClient
+from ..callbacks import BaseLLMCallback
+from ..entities import LLMResponse, TokenUsage, ToolCall
+from ..tools import FunctionTool, ToolSet
 
 
 class AnthropicMessages(BaseLLMClient):
@@ -163,6 +166,7 @@ class AnthropicMessages(BaseLLMClient):
             prompt: str,
             images: Optional[List[PILImage.Image]] = None,
             stream: bool = False,
+            callbacks: Optional[List[BaseLLMCallback]] = None,
             **kwargs: Any) -> Union[LLMResponse, Iterator[LLMResponse]]:
         """Orchestrates a chat interaction, handling history and tool calls.
 
@@ -170,15 +174,16 @@ class AnthropicMessages(BaseLLMClient):
             prompt (str): The user's input text.
             images (Optional[List[PILImage.Image]]): Optional images for multimodal input.
             stream (bool, optional): Whether to use streaming. Defaults to False.
+            callbacks: Optional list of callback handlers.
             **kwargs: Additional parameters for the model.
 
         Returns:
             An LLMResponse (non-stream) or Iterator[LLMResponse] (stream).
         """
         if stream:
-            return self.__ask_loop_stream(prompt, images, **kwargs)
+            return self.__ask_loop_stream(prompt, images, callbacks=callbacks, **kwargs)
         else:
-            return self.__ask_loop(prompt, images, **kwargs)
+            return self.__ask_loop(prompt, images, callbacks=callbacks, **kwargs)
 
     def generate(self,
             messages: List[Dict[str, Any]],
@@ -343,12 +348,14 @@ class AnthropicMessages(BaseLLMClient):
     def __ask_loop(self,
                   prompt: str,
                   images: Optional[List[PILImage.Image]] = None,
+                  callbacks: Optional[List[BaseLLMCallback]] = None,
                   **kwargs: Any) -> LLMResponse:
         """Internal loop for non-streaming interaction.
 
         Args:
             prompt: User prompt.
             images: Multimodal inputs.
+            callbacks: Optional list of callback handlers.
             **kwargs: API arguments.
 
         Returns:
@@ -394,7 +401,7 @@ class AnthropicMessages(BaseLLMClient):
                 })
 
                 tool_outputs, tool_results = self.tool_set.execute_tool_calls(
-                    response.tool_calls)
+                    response.tool_calls, callbacks=callbacks)
 
                 tool_blocks = []
                 for tc, output in zip(response.tool_calls, tool_outputs):
@@ -444,12 +451,14 @@ class AnthropicMessages(BaseLLMClient):
     def __ask_loop_stream(self,
                          prompt: str,
                          images: Optional[List[PILImage.Image]] = None,
+                         callbacks: Optional[List[BaseLLMCallback]] = None,
                          **kwargs: Any) -> Iterator[LLMResponse]:
         """Internal loop for streaming interaction.
 
         Args:
             prompt: User prompt.
             images: Multimodal inputs.
+            callbacks: Optional list of callback handlers.
             **kwargs: API arguments.
 
         Yields:
@@ -511,7 +520,7 @@ class AnthropicMessages(BaseLLMClient):
                 })
 
                 tool_outputs, tool_results = self.tool_set.execute_tool_calls(
-                    tool_calls)
+                    tool_calls, callbacks=callbacks)
 
                 tool_blocks = []
                 for tc, output in zip(tool_calls, tool_outputs):
