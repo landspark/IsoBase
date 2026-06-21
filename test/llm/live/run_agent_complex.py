@@ -3,9 +3,9 @@
 """Manual live smoke test for testing multiple complex tools and callbacks.
 
 Usage:
-    python -m test.llm.live.run_live_complex_tools
+    python -m test.llm.live.run_agent_complex
 
-@File   :   run_live_complex_tools.py
+@File   :   run_agent_complex.py
 @Created:   2026/06/21 03:24
 @Author :   SwordJack
 @Contact:   https://github.com/SwordJack/

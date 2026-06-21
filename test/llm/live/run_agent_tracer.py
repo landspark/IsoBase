@@ -7,9 +7,9 @@ difference in an LLM's response when answering a time-sensitive question
 with and without access to the internet via `SearchTool`.
 
 Usage:
-    python -m test.llm.live.run_live_agent_search
+    python -m test.llm.live.run_agent_tracer
 
-@File   :   run_live_agent_search.py
+@File   :   run_agent_tracer.py
 @Created:   2026/06/21 03:14
 @Author :   SwordJack
 @Contact:   https://github.com/SwordJack/

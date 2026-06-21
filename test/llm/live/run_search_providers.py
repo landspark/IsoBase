@@ -12,9 +12,9 @@ Usage:
          cp test/llm/live/.env.example test/llm/live/.env
        Then edit test/llm/live/.env.
     2. Run from the repo root (so the ``isobase`` package is importable):
-         python -m test.llm.live.run_live_search          # both providers
-         python -m test.llm.live.run_live_search brave    # only the brave section
-         python -m test.llm.live.run_live_search tavily   # only the tavily section
+         python -m test.llm.live.run_search_providers          # both providers
+         python -m test.llm.live.run_search_providers brave    # only the brave section
+         python -m test.llm.live.run_search_providers tavily   # only the tavily section
 
 Leave a provider's API_KEY blank/absent in .env to skip it.
 
@@ -22,7 +22,7 @@ Expected .env variables (see .env.example):
     BRAVE_SEARCH_API_KEY
     TAVILY_SEARCH_API_KEY
 
-@File   :   run_live_search.py
+@File   :   run_search_providers.py
 @Created:   2026/06/21 01:04
 @Author :   SwordJack
 @Contact:   https://github.com/SwordJack/

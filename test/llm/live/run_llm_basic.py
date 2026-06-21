@@ -12,9 +12,9 @@ Usage:
          cp test/llm/live/.env.example test/llm/live/.env
        Then edit test/llm/live/.env.
     2. Run from the repo root (so the ``isobase`` package is importable):
-         python -m test.llm.live.run_live          # both providers, all scenarios
-         python -m test.llm.live.run_live openai    # only the openai section
-         python -m test.llm.live.run_live anthropic # only the anthropic section
+         python -m test.llm.live.run_llm_basic          # both providers, all scenarios
+         python -m test.llm.live.run_llm_basic openai    # only the openai section
+         python -m test.llm.live.run_llm_basic anthropic # only the anthropic section
 
 Each provider section runs: non-streaming ask, streaming ask, and a one-tool
 round trip. Leave a provider's API_KEY blank/absent in .env to skip it.
@@ -23,7 +23,7 @@ Expected .env variables (see .env.example):
     OPENAI_CHAT_BASE_URL / OPENAI_CHAT_API_KEY / OPENAI_CHAT_MODEL
     ANTHROPIC_MESSAGES_BASE_URL / ANTHROPIC_MESSAGES_API_KEY / ANTHROPIC_MESSAGES_MODEL
 
-@File   :   run_live.py
+@File   :   run_llm_basic.py
 @Created:   2026/06/07 01:00
 @Author :   SwordJack
 @Contact:   https://github.com/SwordJack/
