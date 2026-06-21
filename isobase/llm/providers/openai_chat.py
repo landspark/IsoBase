@@ -183,7 +183,7 @@ class OpenAIChat(BaseLLMClient):
 
             delta = chunk.choices[0].delta
             delta_content = delta.content or ""
-            delta_reasoning = delta.reasoning_content or ""
+            delta_reasoning = (delta.reasoning_content or "") if hasattr(delta, "reasoning_content") else ""
 
             if delta_content:
                 content += delta_content
@@ -458,10 +458,11 @@ class OpenAIChat(BaseLLMClient):
             A tuple of (content, tool_calls, reasoning, usage).
         """
         choice = completion.choices[0]
-        content = choice.message.content or ""
+        message = choice.message
+        content = message.content or ""
         tool_calls = []
-        if choice.message.tool_calls:
-            for tc in choice.message.tool_calls:
+        if message.tool_calls:
+            for tc in message.tool_calls:
                 if tc.type == "function":
                     tool_calls.append(
                         ToolCall(
@@ -470,7 +471,7 @@ class OpenAIChat(BaseLLMClient):
                             arguments=tc.function.arguments
                         )
                     )
-        reasoning = choice.message.reasoning_content or ""
+        reasoning = message.reasoning_content if hasattr(message, "reasoning_content") else ""
         usage = self.__extract_usage(completion.usage)
         return content, tool_calls, reasoning, usage
 
@@ -515,13 +516,24 @@ class OpenAIChat(BaseLLMClient):
         """Constructs an assistant message containing content and tool calls.
 
         This method structures the assistant's turn into the exact format required
-        by OpenAI's API so it can be appended to the conversation history
-        (`current_messages` and ultimately `self.messages`) for multi-turn routing.
-        Handles both SDK ChoiceMessageToolCall objects and raw dictionaries.
+        by OpenAI's API (and strict enterprise proxies) so it can be appended to
+        the conversation history for multi-turn routing.
+
+        Due to the differences in how streaming and non-streaming responses are
+        processed, this method acts as a universal compatibility layer that handles
+        three distinct types of tool call representations:
+
+        1. `dict`: Raw dictionaries typically generated during mid-stream accumulation.
+        2. `ToolCall`: IsoBase's provider-neutral dataclass. Yielded at the end of
+           `generate_stream` (in `__ask_loop_stream`). Since it is provider-neutral,
+           it lacks OpenAI-specific fields like `type`, so we manually inject `"type": "function"`.
+        3. `ChoiceMessageToolCall`: Native OpenAI SDK objects returned in non-streaming
+           (`__ask_loop`). It uses `getattr` for safe access and `model_dump()` to
+           preserve built-in native tools (like `web_search`) verbatim.
 
         Args:
             content: Text content from the assistant (or None).
-            tool_calls: List of tool call objects or raw dictionaries.
+            tool_calls: List of tool call objects (SDK or ToolCall) or raw dictionaries.
 
         Returns:
             The structured assistant message dictionary.
@@ -529,8 +541,8 @@ class OpenAIChat(BaseLLMClient):
         assistant_msg: Dict[str, Any] = {"role": "assistant", "tool_calls": []}
 
         for tc in tool_calls:
+            # Case 1: Raw dictionary (e.g., from mid-stream accumulation)
             if isinstance(tc, dict):
-                # Handle raw dictionary tool calls (from __ask_loop_stream)
                 tc_type = tc.get("type", "function")
                 if tc_type == "function":
                     assistant_msg["tool_calls"].append({
@@ -542,21 +554,38 @@ class OpenAIChat(BaseLLMClient):
                         }
                     })
                 else:
+                    # Pass through built-in tools that were streamed as dicts
                     assistant_msg["tool_calls"].append(tc)
+
+            # Case 2: IsoBase neutral dataclass (e.g., from generate_stream final yield)
+            # Lacks the '.type' attribute, so we format it explicitly as a standard function.
+            elif isinstance(tc, ToolCall):
+                assistant_msg["tool_calls"].append({
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.name,
+                        "arguments": tc.arguments
+                    }
+                })
+
+            # Case 3: Native OpenAI SDK Object (e.g., from non-streaming completions)
             else:
-                # Handle SDK ChoiceMessageToolCall objects (from __ask_loop)
-                if tc.type == "function":
+                if getattr(tc, "type", "") == "function":
                     assistant_msg["tool_calls"].append({
-                        "id": tc.id,
+                        "id": getattr(tc, "id", ""),
                         "type": "function",
                         "function": {
-                            "name": tc.function.name,
-                            "arguments": tc.function.arguments
+                            "name": getattr(tc.function, "name", ""),
+                            "arguments": getattr(tc.function, "arguments", "")
                         }
                     })
                 else:
-                    # Pass through native tools verbatim
-                    assistant_msg["tool_calls"].append(tc.model_dump())
+                    # Pass through built-in tools (like web_search) verbatim using model_dump
+                    if hasattr(tc, "model_dump"):
+                        assistant_msg["tool_calls"].append(tc.model_dump())
+                    else:
+                        assistant_msg["tool_calls"].append(tc)
 
         if content:
             assistant_msg["content"] = content
