@@ -19,7 +19,7 @@ import sys
 from os import path
 from typing import Any, Dict, Optional
 
-from isobase.llm import OpenAIChat, AnthropicMessages
+from isobase.llm import LLMClient, OpenAIChat, AnthropicMessages
 from isobase.llm.tools.search import SearchTool, BraveSearchProvider, TavilySearchProvider
 
 ENV_PATH = path.join(path.dirname(__file__), ".env")
@@ -53,7 +53,7 @@ def _get_api_key(env: Dict[str, str], env_key: str) -> Optional[str]:
     return api_key
 
 
-def _run_agent_scenario(llm_client: Any, search_provider: Any, llm_name: str, search_name: str, query: str):
+def _run_agent_scenario(llm_client: LLMClient, search_provider: Any, llm_name: str, search_name: str, query: str):
     """Runs a with/without search scenario for a specific LLM + Search Provider combo."""
     print(f"\n{'=' * 80}")
     print(f"Testing Combination: {llm_name} + {search_name}")

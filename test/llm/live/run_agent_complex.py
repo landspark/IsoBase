@@ -178,14 +178,14 @@ def _run_complex_scenarios(llm_client: LLMClient, prompt: str):
     in_reasoning = False
 
     for chunk in llm_client.ask(prompt, stream=True, callbacks=[cb]):
-        reasoning = getattr(chunk, "reasoning_content", None)
+        reasoning_content = chunk.reasoning_content
         content = chunk.content
 
-        if reasoning:
+        if reasoning_content:
             if not in_reasoning:
                 print("\n🤔 [Thinking]:\n\033[90m", end="", flush=True)
                 in_reasoning = True
-            print(reasoning, end="", flush=True)
+            print(reasoning_content, end="", flush=True)
 
         if content:
             if in_reasoning:
