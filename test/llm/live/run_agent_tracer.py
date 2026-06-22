@@ -21,7 +21,7 @@ from os import path
 from typing import Any, Dict, List, Optional
 
 from isobase.core.logger import LOGGER
-from isobase.llm import OpenAIChat, AnthropicMessages
+from isobase.llm import LLMClient, OpenAIChat, AnthropicMessages
 from isobase.llm.entities import SearchResultItem
 from isobase.llm.tools.search import SearchTool, BraveSearchProvider, TavilySearchProvider
 from isobase.llm.entities import SearchResult
@@ -106,7 +106,7 @@ def wrap_client_with_tracer(client_instance: Any):
     client_instance.generate = traced_generate
 
 
-def _run_agent_scenario(llm_client: Any, search_provider: Any, llm_name: str, search_name: str, query: str):
+def _run_agent_scenario(llm_client: LLMClient, search_provider: Any, llm_name: str, search_name: str, query: str):
     """Runs a with/without search scenario for a specific LLM + Search Provider combo."""
     print(f"\n{'=' * 80}")
     print(f"Testing Combination: {llm_name} + {search_name}")

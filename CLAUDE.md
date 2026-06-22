@@ -60,7 +60,6 @@ For multi-step tasks, state a brief plan:
 **Environment & Testing**:
 
 - Python 3.13 via conda. Setup: `conda env create -f environment.yml && conda activate isobase`
-- _Note: `Pillow` is required but missing from `environment.yml`. Install it manually if needed._
 - Tests use `pytest` and **must** be run from the repo root:
   - `python -m pytest` (all tests)
   - `python -m pytest test/workflow/test_workflow.py` (specific file)

@@ -132,6 +132,8 @@ class MyUIUpdater(BaseLLMCallback):
 client.ask("Latest news in Tokyo", callbacks=[MyUIUpdater()])
 ```
 
+### 4. Extended thinking (Anthropic)
+
 ```python
 client = AnthropicMessages(api_key="sk-ant-...", thinking={"type": "adaptive"})
 resp = client.ask("Solve 27 * 453 step by step.")
@@ -142,7 +144,7 @@ print(resp.content)            # final answer
 ## Module Structure
 
 - `entities.py` — `LLMResponse`, `TokenUsage`, and `ToolCall` dataclasses; the standardized provider-neutral data types used for inputs and returns.
-- `providers/base.py` — `BaseLLMClient` abstract interface (`generate`, `generate_stream`) plus `build_user_message_content` for multimodal messages.
+- `providers/base.py` — `BaseLLMClient` abstract interface (`ask`, `generate`, `generate_stream`) plus `build_user_message_content` for multimodal messages.
 - `providers/openai_chat.py` — `OpenAIChat`, the OpenAI Chat Completion compatible client.
 - `providers/anthropic_messages.py` — `AnthropicMessages`, the Anthropic Messages compatible client (named after the Messages API, mirroring how `OpenAIChat` is named after the Chat Completion API).
 - `tools/base.py` — `FunctionTool`, `ToolSet`; the neutral tool representation and execution engine.
@@ -150,7 +152,7 @@ print(resp.content)            # final answer
 
 Image helpers live in `isobase/core/image_service.py` (`convert_image_to_data_url` for OpenAI, `convert_image_to_base64` for Anthropic).
 
-Manual live API smoke tests (not run by pytest) live in `test/llm/live/` — copy `.env.example` to `.env`, fill in credentials, and run `python -m test.llm.live.run_live`.
+Manual live API smoke tests (not run by pytest) live in `test/llm/live/` — copy `.env.example` to `.env`, fill in credentials, and run `python -m test.llm.live.run_llm_basic`.
 
 ## Status
 

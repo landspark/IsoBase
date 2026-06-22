@@ -145,7 +145,7 @@ print(resp.content)            # 最终回答
 ## 模块结构
 
 - `entities.py` —— `LLMResponse`、`TokenUsage` 与 `ToolCall` 数据类；用作输入和每个客户端方法的标准化返回类型。
-- `providers/base.py` —— `BaseLLMClient` 抽象接口（`generate`、`generate_stream`）以及用于多模态消息的 `build_user_message_content`。
+- `providers/base.py` —— `BaseLLMClient` 抽象接口（`ask`、`generate`、`generate_stream`）以及用于多模态消息的 `build_user_message_content`。
 - `providers/openai_chat.py` —— `OpenAIChat`，OpenAI Chat Completion 兼容客户端。
 - `providers/anthropic_messages.py` —— `AnthropicMessages`，Anthropic Messages 兼容客户端（按其对接的 Messages API 命名，与 `OpenAIChat` 按 Chat Completion API 命名同理）。
 - `tools/base.py` —— `FunctionTool` 与 `ToolSet`；中立工具表示及执行引擎。
@@ -153,7 +153,7 @@ print(resp.content)            # 最终回答
 
 图像辅助函数位于 `isobase/core/image_service.py`（`convert_image_to_data_url` 供 OpenAI，`convert_image_to_base64` 供 Anthropic）。
 
-手动真实 API 冒烟测试（不由 pytest 收集）位于 `test/llm/live/` —— 把 `.env.example` 复制为 `.env`、填入凭据，运行 `python -m test.llm.live.run_live`。
+手动真实 API 冒烟测试（不由 pytest 收集）位于 `test/llm/live/` —— 把 `.env.example` 复制为 `.env`、填入凭据，运行 `python -m test.llm.live.run_llm_basic`。
 
 ## 进度
 

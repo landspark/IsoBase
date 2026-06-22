@@ -33,7 +33,7 @@ Key Anthropic-specific handling versus OpenAI:
 
 from inspect import signature
 from json import dumps
-from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Tuple, Union, overload
 
 from anthropic import Anthropic, BadRequestError
 # Reuse the SDK's own streaming accumulator instead of hand-rolling block
@@ -161,29 +161,6 @@ class AnthropicMessages(BaseLLMClient):
                 },
             })
         return content
-
-    def ask(self,
-            prompt: str,
-            images: Optional[List[PILImage.Image]] = None,
-            stream: bool = False,
-            callbacks: Optional[List[BaseLLMCallback]] = None,
-            **kwargs: Any) -> Union[LLMResponse, Iterator[LLMResponse]]:
-        """Orchestrates a chat interaction, handling history and tool calls.
-
-        Args:
-            prompt (str): The user's input text.
-            images (Optional[List[PILImage.Image]]): Optional images for multimodal input.
-            stream (bool, optional): Whether to use streaming. Defaults to False.
-            callbacks: Optional list of callback handlers.
-            **kwargs: Additional parameters for the model.
-
-        Returns:
-            An LLMResponse (non-stream) or Iterator[LLMResponse] (stream).
-        """
-        if stream:
-            return self.__ask_loop_stream(prompt, images, callbacks=callbacks, **kwargs)
-        else:
-            return self.__ask_loop(prompt, images, callbacks=callbacks, **kwargs)
 
     def generate(self,
             messages: List[Dict[str, Any]],
@@ -345,7 +322,7 @@ class AnthropicMessages(BaseLLMClient):
             raw_response=snapshot
         )
 
-    def __ask_loop(self,
+    def _ask_loop(self,
                   prompt: str,
                   images: Optional[List[PILImage.Image]] = None,
                   callbacks: Optional[List[BaseLLMCallback]] = None,
@@ -448,7 +425,7 @@ class AnthropicMessages(BaseLLMClient):
         except Exception as e:
             return self.__handle_ask_exception(e)
 
-    def __ask_loop_stream(self,
+    def _ask_loop_stream(self,
                          prompt: str,
                          images: Optional[List[PILImage.Image]] = None,
                          callbacks: Optional[List[BaseLLMCallback]] = None,

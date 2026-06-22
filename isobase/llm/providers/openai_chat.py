@@ -9,7 +9,7 @@
 """
 
 from inspect import signature
-from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Tuple, Union, overload
 
 from openai import (
     BadRequestError,
@@ -90,29 +90,6 @@ class OpenAIChat(BaseLLMClient):
         }
 
         LOGGER.info(f"OpenAIChat initialized (model: {default_model})")
-
-    def ask(self,
-            prompt: str,
-            images: Optional[List[PILImage.Image]] = None,
-            stream: bool = False,
-            callbacks: Optional[List[BaseLLMCallback]] = None,
-            **kwargs: Any) -> Union[LLMResponse, Iterator[LLMResponse]]:
-        """Orchestrates a chat interaction, handling history and tool calls.
-
-        Args:
-            prompt (str): The user's input text.
-            images (Optional[List[PILImage.Image]]): Optional list of images for multimodal input.
-            stream (bool, optional): Whether to use streaming for the interaction. Defaults to False.
-            callbacks: Optional list of callback handlers.
-            **kwargs: Additional parameters for the model.
-
-        Returns:
-            An LLMResponse (non-stream) or Iterator[LLMResponse] (stream).
-        """
-        if stream:
-            return self.__ask_loop_stream(prompt, images, callbacks=callbacks, **kwargs)
-        else:
-            return self.__ask_loop(prompt, images, callbacks=callbacks, **kwargs)
 
     def generate(self,
             messages: List[Dict[str, str]],
@@ -236,7 +213,7 @@ class OpenAIChat(BaseLLMClient):
             usage=usage
         )
 
-    def __ask_loop(self,
+    def _ask_loop(self,
                   prompt: str,
                   images: Optional[List[PILImage.Image]] = None,
                   callbacks: Optional[List[BaseLLMCallback]] = None,
@@ -327,7 +304,7 @@ class OpenAIChat(BaseLLMClient):
         except Exception as e:
             return self.__handle_ask_exception(e)
 
-    def __ask_loop_stream(self,
+    def _ask_loop_stream(self,
                          prompt: str,
                          images: Optional[List[PILImage.Image]] = None,
                          callbacks: Optional[List[BaseLLMCallback]] = None,
@@ -525,10 +502,10 @@ class OpenAIChat(BaseLLMClient):
 
         1. `dict`: Raw dictionaries typically generated during mid-stream accumulation.
         2. `ToolCall`: IsoBase's provider-neutral dataclass. Yielded at the end of
-           `generate_stream` (in `__ask_loop_stream`). Since it is provider-neutral,
+           `generate_stream` (in `_ask_loop_stream`). Since it is provider-neutral,
            it lacks OpenAI-specific fields like `type`, so we manually inject `"type": "function"`.
         3. `ChoiceMessageToolCall`: Native OpenAI SDK objects returned in non-streaming
-           (`__ask_loop`). It uses `getattr` for safe access and `model_dump()` to
+           (`_ask_loop`). It uses `getattr` for safe access and `model_dump()` to
            preserve built-in native tools (like `web_search`) verbatim.
 
         Args:
