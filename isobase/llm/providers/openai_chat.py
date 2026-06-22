@@ -9,7 +9,7 @@
 """
 
 from inspect import signature
-from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Tuple, Union, overload
 
 from openai import (
     BadRequestError,
@@ -90,6 +90,24 @@ class OpenAIChat(BaseLLMClient):
         }
 
         LOGGER.info(f"OpenAIChat initialized (model: {default_model})")
+
+    @overload
+    def ask(self,
+            prompt: str,
+            images: Optional[List[PILImage.Image]] = None,
+            stream: Literal[False] = False,
+            callbacks: Optional[List[BaseLLMCallback]] = None,
+            **kwargs: Any) -> LLMResponse:
+        ...
+
+    @overload
+    def ask(self,
+            prompt: str,
+            images: Optional[List[PILImage.Image]] = None,
+            stream: Literal[True] = True,
+            callbacks: Optional[List[BaseLLMCallback]] = None,
+            **kwargs: Any) -> Iterator[LLMResponse]:
+        ...
 
     def ask(self,
             prompt: str,

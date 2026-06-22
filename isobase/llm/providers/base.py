@@ -9,7 +9,7 @@
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterator, List, Literal, Optional, Union, overload
 
 from PIL import Image as PILImage
 
@@ -57,6 +57,24 @@ class BaseLLMClient(ABC):
             LLMResponse objects containing incremental content chunks.
         """
         pass
+
+    @overload
+    def ask(self,
+            prompt: str,
+            images: Optional[List[PILImage.Image]] = None,
+            stream: Literal[False] = False,
+            callbacks: Optional[List[BaseLLMCallback]] = None,
+            **kwargs: Any) -> LLMResponse:
+        ...
+
+    @overload
+    def ask(self,
+            prompt: str,
+            images: Optional[List[PILImage.Image]] = None,
+            stream: Literal[True] = True,
+            callbacks: Optional[List[BaseLLMCallback]] = None,
+            **kwargs: Any) -> Iterator[LLMResponse]:
+        ...
 
     @abstractmethod
     def ask(self,
