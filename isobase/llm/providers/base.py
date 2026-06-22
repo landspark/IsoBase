@@ -76,7 +76,6 @@ class BaseLLMClient(ABC):
             **kwargs: Any) -> Iterator[LLMResponse]:
         ...
 
-    @abstractmethod
     def ask(self,
             prompt: str,
             images: Optional[List[PILImage.Image]] = None,
@@ -94,6 +93,47 @@ class BaseLLMClient(ABC):
 
         Returns:
             An LLMResponse (non-stream) or Iterator[LLMResponse] (stream).
+        """
+        if stream:
+            return self._ask_loop_stream(prompt, images, callbacks=callbacks, **kwargs)
+        else:
+            return self._ask_loop(prompt, images, callbacks=callbacks, **kwargs)
+
+    @abstractmethod
+    def _ask_loop(self,
+                  prompt: str,
+                  images: Optional[List[PILImage.Image]] = None,
+                  callbacks: Optional[List[BaseLLMCallback]] = None,
+                  **kwargs: Any) -> LLMResponse:
+        """Internal loop for non-streaming interaction.
+
+        Args:
+            prompt: User prompt.
+            images: Multimodal inputs.
+            callbacks: Optional list of callback handlers.
+            **kwargs: API arguments.
+
+        Returns:
+            Final LLMResponse after all tool calls.
+        """
+        pass
+
+    @abstractmethod
+    def _ask_loop_stream(self,
+                         prompt: str,
+                         images: Optional[List[PILImage.Image]] = None,
+                         callbacks: Optional[List[BaseLLMCallback]] = None,
+                         **kwargs: Any) -> Iterator[LLMResponse]:
+        """Internal loop for streaming interaction.
+
+        Args:
+            prompt: User prompt.
+            images: Multimodal inputs.
+            callbacks: Optional list of callback handlers.
+            **kwargs: API arguments.
+
+        Yields:
+            Incremental chunks and a final summary per round.
         """
         pass
 

@@ -162,47 +162,6 @@ class AnthropicMessages(BaseLLMClient):
             })
         return content
 
-    @overload
-    def ask(self,
-            prompt: str,
-            images: Optional[List[PILImage.Image]] = None,
-            stream: Literal[False] = False,
-            callbacks: Optional[List[BaseLLMCallback]] = None,
-            **kwargs: Any) -> LLMResponse:
-        ...
-
-    @overload
-    def ask(self,
-            prompt: str,
-            images: Optional[List[PILImage.Image]] = None,
-            stream: Literal[True] = True,
-            callbacks: Optional[List[BaseLLMCallback]] = None,
-            **kwargs: Any) -> Iterator[LLMResponse]:
-        ...
-
-    def ask(self,
-            prompt: str,
-            images: Optional[List[PILImage.Image]] = None,
-            stream: bool = False,
-            callbacks: Optional[List[BaseLLMCallback]] = None,
-            **kwargs: Any) -> Union[LLMResponse, Iterator[LLMResponse]]:
-        """Orchestrates a chat interaction, handling history and tool calls.
-
-        Args:
-            prompt (str): The user's input text.
-            images (Optional[List[PILImage.Image]]): Optional images for multimodal input.
-            stream (bool, optional): Whether to use streaming. Defaults to False.
-            callbacks: Optional list of callback handlers.
-            **kwargs: Additional parameters for the model.
-
-        Returns:
-            An LLMResponse (non-stream) or Iterator[LLMResponse] (stream).
-        """
-        if stream:
-            return self.__ask_loop_stream(prompt, images, callbacks=callbacks, **kwargs)
-        else:
-            return self.__ask_loop(prompt, images, callbacks=callbacks, **kwargs)
-
     def generate(self,
             messages: List[Dict[str, Any]],
             model: Optional[str] = None,
@@ -363,7 +322,7 @@ class AnthropicMessages(BaseLLMClient):
             raw_response=snapshot
         )
 
-    def __ask_loop(self,
+    def _ask_loop(self,
                   prompt: str,
                   images: Optional[List[PILImage.Image]] = None,
                   callbacks: Optional[List[BaseLLMCallback]] = None,
@@ -466,7 +425,7 @@ class AnthropicMessages(BaseLLMClient):
         except Exception as e:
             return self.__handle_ask_exception(e)
 
-    def __ask_loop_stream(self,
+    def _ask_loop_stream(self,
                          prompt: str,
                          images: Optional[List[PILImage.Image]] = None,
                          callbacks: Optional[List[BaseLLMCallback]] = None,
