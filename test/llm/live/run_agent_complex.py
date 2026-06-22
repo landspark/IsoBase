@@ -175,12 +175,27 @@ def _run_complex_scenarios(llm_client: LLMClient, prompt: str):
 
     print("\n[Response Stream Starts]:\n")
     # Stream mode loop which processes chunks sequentially as they arrive
+    in_reasoning = False
+
     for chunk in llm_client.ask(prompt, stream=True, callbacks=[cb]):
-        if chunk.content:
-            print(chunk.content, end="", flush=True)
-        # Note: If extended thinking is active, print it out
-        if getattr(chunk, "reasoning_content", None):
-            print(f"\033[90m{chunk.reasoning_content}\033[0m", end="", flush=True)
+        reasoning = getattr(chunk, "reasoning_content", None)
+        content = chunk.content
+
+        if reasoning:
+            if not in_reasoning:
+                print("\n🤔 [Thinking]:\n\033[90m", end="", flush=True)
+                in_reasoning = True
+            print(reasoning, end="", flush=True)
+
+        if content:
+            if in_reasoning:
+                print("\033[0m\n\n✨ [Output]:\n", end="", flush=True)
+                in_reasoning = False
+            print(content, end="", flush=True)
+
+    # Safety check to clear color formatting
+    if in_reasoning:
+        print("\033[0m", end="", flush=True)
 
     print("\n\n[Response Stream Ends]\n")
 
