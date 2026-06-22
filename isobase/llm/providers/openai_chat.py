@@ -502,10 +502,10 @@ class OpenAIChat(BaseLLMClient):
 
         1. `dict`: Raw dictionaries typically generated during mid-stream accumulation.
         2. `ToolCall`: IsoBase's provider-neutral dataclass. Yielded at the end of
-           `generate_stream` (in `__ask_loop_stream`). Since it is provider-neutral,
+           `generate_stream` (in `_ask_loop_stream`). Since it is provider-neutral,
            it lacks OpenAI-specific fields like `type`, so we manually inject `"type": "function"`.
         3. `ChoiceMessageToolCall`: Native OpenAI SDK objects returned in non-streaming
-           (`__ask_loop`). It uses `getattr` for safe access and `model_dump()` to
+           (`_ask_loop`). It uses `getattr` for safe access and `model_dump()` to
            preserve built-in native tools (like `web_search`) verbatim.
 
         Args:
