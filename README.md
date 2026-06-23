@@ -20,3 +20,9 @@ Isomorphic Base (IsoBase) is an automation framework designed to optimize corpor
 ## Expectation
 
 With its advanced algorithms, IsoBase analyzes data in real time, optimizes resource allocation, and automates routine operations, significantly reducing the need for human intervention and improving the accuracy and agility of workflows. Additionally, IsoBase facilitates inter-departmental collaboration, enhancing the transparency of information flows and overall corporate synergy.
+
+## License
+
+Copyright (c) 2024-2026 Landspark Digital Tech.
+
+This project is licensed under the Mozilla Public License 2.0 - see the [LICENSE](LICENSE) file for details.
