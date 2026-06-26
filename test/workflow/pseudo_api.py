@@ -9,8 +9,8 @@
 from datetime import datetime
 from random import randint
 
-from ark import LOGGER
-from ark.workflow import UNIT_API_MAPPER
+from isobase import LOGGER
+from isobase.workflow import UNIT_API_MAPPER
 
 class PseudoAPI():
     """This class acts as a container to save some static pseudo SCIENCE APIs for test."""

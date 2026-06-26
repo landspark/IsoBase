@@ -1,40 +1,128 @@
-name: ark
+name: isobase
 channels:
   - conda-forge
   - defaults
 dependencies:
   - _libgcc_mutex=0.1=main
   - _openmp_mutex=5.1=1_gnu
+  - _python_abi3_support=1.0=hd8ed1ab_2
+  - annotated-doc=0.0.4=pyhcf101f3_0
+  - annotated-types=0.6.0=py313h06a4308_1
+  - anthropic=0.85.0=pyhd8ed1ab_0
+  - anyio=4.12.1=py313h06a4308_0
+  - aom=3.13.2=h664349e_0
+  - brotli-python=1.2.0=py313hf159716_1
   - bzip2=1.0.8=h5eee18b_6
-  - ca-certificates=2025.2.25=h06a4308_0
+  - ca-certificates=2026.6.17=hbd8a1cb_0
+  - cached-property=1.5.2=hd8ed1ab_1
+  - cached_property=1.5.2=pyha770c72_1
+  - cairo=1.18.4=h44eff21_0
+  - certifi=2026.6.17=pyhd8ed1ab_0
+  - cffi=1.17.1=py313hfab6e84_0
+  - charset-normalizer=3.4.7=pyhd8ed1ab_0
+  - click=8.4.1=pyhc90fa1f_0
   - colorlog=6.9.0=pyh707e725_1
+  - cpython=3.13.13=py313hd8ed1ab_100
+  - dav1d=1.5.3=h3e43c27_0
+  - distro=1.9.0=py313h06a4308_0
+  - docstring_parser=0.18.0=pyhd8ed1ab_0
   - expat=2.6.4=h6a678d5_0
+  - filelock=3.29.1=pyhd8ed1ab_0
+  - fontconfig=2.14.1=h55d465d_3
+  - freetype=2.14.1=hf5b9546_0
+  - fribidi=1.0.16=h10f3c28_1
+  - fsspec=2026.4.0=pyhd8ed1ab_0
+  - graphite2=1.3.14=h295c915_1
   - greenlet=3.1.1=py313h6a678d5_0
+  - h11=0.16.0=py313h06a4308_1
+  - h2=4.3.0=pyhcf101f3_0
+  - harfbuzz=12.3.0=h79d275a_1
+  - hf-xet=1.5.0=py310hb823017_0
+  - hpack=4.1.0=pyhd8ed1ab_0
+  - httpcore=1.0.9=py313h06a4308_0
+  - httpx=0.28.1=py313h06a4308_1
+  - huggingface_hub=1.18.0=pyhd8ed1ab_0
+  - hyperframe=6.1.0=pyhd8ed1ab_0
+  - icu=73.1=h6a678d5_0
+  - idna=3.18=py313h06a4308_0
   - iniconfig=1.1.1=pyhd3eb1b0_0
+  - jiter=0.12.0=py313h498d7c9_0
+  - jpeg=9f=h5ce9db8_0
+  - lcms2=2.19=he283960_0
   - ld_impl_linux-64=2.40=h12ee557_0
+  - lerc=4.1.0=h7354ed3_2
+  - libavif=1.3.0=h2b90b00_1
+  - libdeflate=1.22=h5eee18b_0
   - libffi=3.4.4=h6a678d5_1
   - libgcc=14.2.0=h767d61c_2
   - libgcc-ng=14.2.0=h69a702a_2
+  - libglib=2.86.3=h8b17d9a_0
   - libgomp=14.2.0=h767d61c_2
+  - libiconv=1.18=h75a1612_0
   - libmpdec=4.0.0=h5eee18b_0
+  - libopenjpeg=2.5.4=hee96239_1
+  - libpng=1.6.54=hee55ce4_0
+  - libstdcxx=14.2.0=h8f9b012_2
   - libstdcxx-ng=11.2.0=h1234567_1
+  - libtiff=4.7.1=h029b1ac_0
   - libuuid=1.41.5=h5eee18b_0
+  - libwebp-base=1.6.0=hb7bb969_0
+  - libxcb=1.17.0=h9b100fa_0
+  - libxml2=2.13.9=h2c43086_0
+  - lz4-c=1.9.4=h6a678d5_1
+  - markdown-it-py=4.2.0=pyhd8ed1ab_0
+  - mdurl=0.1.2=pyhd8ed1ab_1
   - ncurses=6.4=h6a678d5_0
-  - openssl=3.4.1=h7b32b05_0
+  - openai=2.30.0=py313h06a4308_0
+  - openssl=3.6.3=h35e630c_0
   - packaging=24.2=py313h06a4308_0
+  - pcre2=10.46=hf426167_0
+  - phonenumbers=8.13.49=py313h06a4308_0
+  - pillow=12.1.0=py313hd9fd23a_0
   - pip=25.0=py313h06a4308_0
+  - pixman=0.46.4=h7934f7d_0
   - pluggy=1.5.0=py313h06a4308_0
+  - pthread-stubs=0.3=h0ce48e5_1
+  - pycountry=24.6.1=pyhd8ed1ab_0
+  - pycparser=3.0=pyhcf101f3_0
+  - pydantic=2.11.9=py313h06a4308_0
+  - pydantic-core=2.33.2=py313hc6f7160_0
+  - pygments=2.20.0=pyhd8ed1ab_0
+  - pysocks=1.7.1=pyha55dd90_7
   - pytest=8.3.4=py313h06a4308_0
   - python=3.13.2=hf623796_100_cp313
+  - python-gil=3.13.13=h4df99d1_100
   - python_abi=3.13=0_cp313
+  - pyyaml=6.0.3=py313h3dea7bd_1
   - readline=8.2=h5eee18b_0
+  - regex=2026.5.9=py313h07c4f96_0
+  - requests=2.34.2=pyhcf101f3_0
+  - rich=15.0.0=pyhcf101f3_0
   - setuptools=75.8.0=py313h06a4308_0
+  - shellingham=1.5.4=pyhd8ed1ab_2
+  - sniffio=1.3.1=py313h06a4308_0
   - sqlalchemy=2.0.37=py313h00e1ef3_0
   - sqlite=3.45.3=h5eee18b_0
+  - tavily-python=0.7.26=pyhcf101f3_0
+  - tiktoken=0.13.0=py313h08e1486_0
   - tk=8.6.14=h39e8969_0
+  - tokenizers=0.22.2=py313h4d6fefd_0
+  - tqdm=4.67.3=py313h7040dfc_1
+  - typer=0.25.1=pyhcf101f3_0
   - typing-extensions=4.12.2=py313h06a4308_0
+  - typing-inspection=0.4.2=py313h06a4308_0
   - typing_extensions=4.12.2=py313h06a4308_0
   - tzdata=2025a=h04d1e81_0
+  - urllib3=2.5.0=pyhd8ed1ab_0
   - wheel=0.45.1=py313h06a4308_0
+  - xorg-libx11=1.8.12=h9b100fa_1
+  - xorg-libxau=1.0.12=h9b100fa_0
+  - xorg-libxdmcp=1.1.5=h9b100fa_0
+  - xorg-libxext=1.3.6=h9b100fa_0
+  - xorg-libxrender=0.9.12=h9b100fa_0
+  - xorg-xorgproto=2024.1=h5eee18b_1
   - xz=5.6.4=h5eee18b_1
+  - yaml=0.2.5=h280c20c_3
   - zlib=1.2.13=h5eee18b_1
+  - zstandard=0.23.0=py313h07c4f96_3
+  - zstd=1.5.6=hc292b87_0

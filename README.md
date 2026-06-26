@@ -1,4 +1,4 @@
-# Agile Resource Kernel (ARK)
+# Isomorphic Base (IsoBase)
 
 Author: [SwordJack](https://github.com/SwordJack)
 
@@ -15,8 +15,14 @@ We welcome automation enthusiasts around the globe to participate in the develop
 
 ## Opening
 
-Agile Resource Kernel (ARK) is a project designed to optimize corporate resource management and operational processes through automation and intelligent technologies. Integrating artificial intelligence, ARK supports data-driven decision-making, enhancing operational efficiency and responsiveness.
+Isomorphic Base (IsoBase) is an automation framework designed to optimize corporate resource management and operational processes through automation and intelligent technologies. Integrating artificial intelligence, IsoBase supports data-driven decision-making, enhancing operational efficiency and responsiveness.
 
 ## Expectation
 
-With its advanced algorithms, ARK analyzes data in real time, optimizes resource allocation, and automates routine operations, significantly reducing the need for human intervention and improving the accuracy and agility of workflows. Additionally, ARK facilitates inter-departmental collaboration, enhancing the transparency of information flows and overall corporate synergy.
+With its advanced algorithms, IsoBase analyzes data in real time, optimizes resource allocation, and automates routine operations, significantly reducing the need for human intervention and improving the accuracy and agility of workflows. Additionally, IsoBase facilitates inter-departmental collaboration, enhancing the transparency of information flows and overall corporate synergy.
+
+## License
+
+Copyright (c) 2024-2026 Landspark Digital Tech.
+
+This project is licensed under the Mozilla Public License 2.0 - see the [LICENSE](LICENSE) file for details.

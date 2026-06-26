@@ -6,14 +6,14 @@
 @Author : SwordJack
 @Contact: https://github.com/SwordJack/
 """
-from ark import LOGGER
+from isobase import LOGGER
 
 # Here put the import lib.
 
 def test_logger():
-    LOGGER.debug("Test ARK logger debug.")
-    LOGGER.info("Test ARK logger info.")
-    LOGGER.warning("Test ARK logger warning.")
-    LOGGER.error("Test ARK logger error.")
-    LOGGER.exception("Test ARK logger exception.")
-    LOGGER.critical("Test ARK logger critical.")
+    LOGGER.debug("Test IsoBase logger debug.")
+    LOGGER.info("Test IsoBase logger info.")
+    LOGGER.warning("Test IsoBase logger warning.")
+    LOGGER.error("Test IsoBase logger error.")
+    LOGGER.exception("Test IsoBase logger exception.")
+    LOGGER.critical("Test IsoBase logger critical.")
