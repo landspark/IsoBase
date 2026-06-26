@@ -161,3 +161,10 @@ cython_debug/
 
 # VS Code
 .vscode/
+
+# Conda Recipes
+#  See https://docs.conda.io/projects/conda-build/en/latest/resources/
+#  for more information about conda build recipes.
+# Conda build artifacts
+conda-bld/
+conda-recipe/
