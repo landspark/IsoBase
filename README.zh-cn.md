@@ -2,8 +2,6 @@
 
 作者：[SwordJack](https://github.com/SwordJack)
 
-[TOC]
-
 ## README
 
 - 汉语 [README.zh-cn.md](README.zh-cn.md)
