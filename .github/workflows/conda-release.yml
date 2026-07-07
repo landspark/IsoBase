@@ -42,7 +42,7 @@ jobs:
         sudo mv "$RATTLER_BIN" /usr/local/bin/rattler-build
         rattler-build --version
 
-    - name: Determine Version and Create Variant Config
+    - name: Determine Version
       run: |
         if [ "${{ github.event_name }}" = "release" ]; then
           TAG_NAME=${GITHUB_REF#refs/tags/}
@@ -52,23 +52,15 @@ jobs:
           VERSION="${{ inputs.version }}"
           echo "Manual trigger: using input version: $VERSION"
         fi
-
-        # Create variant config file to pass version to recipe
-        cat > variant_config.yaml << EOF
-        version:
-          - $VERSION
-        EOF
-
-        echo "Created variant_config.yaml:"
-        cat variant_config.yaml
         echo "VERSION=$VERSION" >> $GITHUB_ENV
 
     - name: Build Conda Package
+      env:
+        BUILD_VERSION: ${{ env.VERSION }}
       run: |
         rattler-build build \
           --recipe .conda/recipe.yaml \
-          --output-dir output_bld \
-          --variant-config variant_config.yaml
+          --output-dir output_bld
         echo "Build completed. Artifacts:"
         ls -R output_bld
 
