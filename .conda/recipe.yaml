@@ -13,9 +13,9 @@ source:
 build:
   noarch: python
   number: 0
-  script:
-    - echo "Building version: ${{ version }}"
-    - python -m pip install . -vv
+  script: |
+    echo "Building version: ${{ version }}"
+    python -m pip install . -vv
 
 requirements:
   host:
