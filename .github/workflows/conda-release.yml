@@ -23,59 +23,67 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Install rattler-build
-      run: |
-        curl -L -o rattler-build.tar.gz \
-          https://github.com/prefix-dev/rattler-build/releases/latest/download/rattler-build-x86_64-unknown-linux-musl.tar.gz
-        tar -xzf rattler-build.tar.gz
-        RATTLER_BIN=$(find . -name 'rattler-build' -type f -executable | head -n 1)
-        if [ -z "$RATTLER_BIN" ]; then
-          echo "Error: rattler-build binary not found after extraction"
-          ls -laR .
-          exit 1
-        fi
-        chmod +x "$RATTLER_BIN"
-        sudo mv "$RATTLER_BIN" /usr/local/bin/rattler-build
-        rattler-build --version
+      - name: Install rattler-build
+        run: |
+          curl -L -o rattler-build.tar.gz \
+            https://github.com/prefix-dev/rattler-build/releases/latest/download/rattler-build-x86_64-unknown-linux-musl.tar.gz
+          tar -xzf rattler-build.tar.gz
+          RATTLER_BIN=$(find . -name 'rattler-build' -type f -executable | head -n 1)
+          if [ -z "$RATTLER_BIN" ]; then
+            echo "Error: rattler-build binary not found after extraction"
+            ls -laR .
+            exit 1
+          fi
+          chmod +x "$RATTLER_BIN"
+          sudo mv "$RATTLER_BIN" /usr/local/bin/rattler-build
+          rattler-build --version
 
-    - name: Determine Version
-      run: |
-        if [ "${{ github.event_name }}" = "release" ]; then
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-          VERSION=${TAG_NAME#v}
-          echo "Release trigger: using version from tag: $VERSION"
-        else
-          VERSION="${{ inputs.version }}"
-          echo "Manual trigger: using input version: $VERSION"
-        fi
-        echo "VERSION=$VERSION" >> $GITHUB_ENV
+      - name: Determine Version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG_NAME=${GITHUB_REF#refs/tags/}
+            VERSION=${TAG_NAME#v}
+            echo "Release trigger: using version from tag: $VERSION"
+          else
+            VERSION="${{ inputs.version }}"
+            echo "Manual trigger: using input version: $VERSION"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-    - name: Build Conda Package
-      env:
-        BUILD_VERSION: ${{ env.VERSION }}
-      run: |
-        rattler-build build \
-          --recipe .conda/recipe.yaml \
-          --output-dir output_bld
-        echo "Build completed. Artifacts:"
-        ls -R output_bld
+          # Create variant config file using proper YAML format
+          cat > variant_config.yaml <<EOF
+          version:
+            - "$VERSION"
+          EOF
+          echo "Created variant_config.yaml:"
+          cat variant_config.yaml
 
-    - name: Add conda to system path
-      run: |
-        echo $CONDA/bin >> $GITHUB_PATH
+      - name: Build Conda Package
+        run: |
+          echo "Building with version: $VERSION"
+          rattler-build build \
+            --recipe .conda/recipe.yaml \
+            --output-dir output_bld \
+            --variant-config variant_config.yaml
+          echo "Build completed. Artifacts:"
+          ls -R output_bld
 
-    - name: Install Anaconda Client
-      if: github.event_name == 'release' || inputs.upload == true
-      run: |
-        conda install -y anaconda-client
+      - name: Add conda to system path
+        run: |
+          echo $CONDA/bin >> $GITHUB_PATH
 
-    - name: Upload to Anaconda Cloud
-      if: github.event_name == 'release' || inputs.upload == true
-      env:
-        ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
-      run: |
-        anaconda upload output_bld/**/*.conda -u landspark --label main
+      - name: Install Anaconda Client
+        if: github.event_name == 'release' || inputs.upload == true
+        run: |
+          conda install -y anaconda-client
+
+      - name: Upload to Anaconda Cloud
+        if: github.event_name == 'release' || inputs.upload == true
+        env:
+          ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+        run: |
+          anaconda upload output_bld/**/*.conda -u landspark --label main
