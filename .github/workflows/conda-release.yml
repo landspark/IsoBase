@@ -4,6 +4,19 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g., 0.1.5)'
+        required: true
+        type: string
+      upload:
+        description: 'Upload to Anaconda Cloud?'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
 jobs:
   build-and-upload:
@@ -11,6 +24,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history and tags
 
     - name: Install rattler-build
       run: |
@@ -18,22 +33,40 @@ jobs:
         curl -L -o rattler-build.tar.gz \
           https://github.com/prefix-dev/rattler-build/releases/latest/download/rattler-build-x86_64-unknown-linux-musl.tar.gz
         tar -xzf rattler-build.tar.gz
-        chmod +x rattler-build
-        mv rattler-build /usr/local/bin/
+        # Find the binary (it's inside a subdirectory after extraction)
+        RATTLER_BIN=$(find . -name 'rattler-build' -type f -executable | head -n 1)
+        if [ -z "$RATTLER_BIN" ]; then
+          echo "Error: rattler-build binary not found after extraction"
+          ls -laR .
+          exit 1
+        fi
+        chmod +x "$RATTLER_BIN"
+        sudo mv "$RATTLER_BIN" /usr/local/bin/rattler-build
         rattler-build --version
 
-    - name: Extract Tag Version
-      id: extract_tag
+    - name: Determine Version
+      id: determine_version
       run: |
-        # Strip the 'v' prefix if present (e.g., v0.1.0 -> 0.1.0)
-        TAG_NAME=${GITHUB_REF#refs/tags/}
-        VERSION=${TAG_NAME#v}
+        if [ "${{ github.event_name }}" = "release" ]; then
+          # Extract version from release tag (strip 'v' prefix)
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG_NAME#v}
+          echo "Release trigger: using version from tag: $VERSION"
+        else
+          # Use manually input version
+          VERSION="${{ inputs.version }}"
+          echo "Manual trigger: using input version: $VERSION"
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "VERSION=$VERSION" >> $GITHUB_ENV
 
     - name: Build Conda Package
       run: |
-        # Build the conda package using rattler-build
-        rattler-build build --recipe .conda/recipe.yaml --output-dir output_bld
+        # Build the conda package using rattler-build with explicit version
+        rattler-build build \
+          --recipe .conda/recipe.yaml \
+          --output-dir output_bld \
+          --variant "version=${{ steps.determine_version.outputs.version }}"
         echo "Build completed. Artifacts:"
         ls -R output_bld
 
@@ -42,10 +75,12 @@ jobs:
         echo $CONDA/bin >> $GITHUB_PATH
 
     - name: Install Anaconda Client
+      if: github.event_name == 'release' || inputs.upload == true
       run: |
         conda install -y anaconda-client
 
     - name: Upload to Anaconda Cloud
+      if: github.event_name == 'release' || inputs.upload == true
       env:
         ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
       run: |
