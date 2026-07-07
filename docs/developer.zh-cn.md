@@ -60,3 +60,87 @@ Reference: https://github.com/jyesselm/dreem/blob/main/dreem/logger.py
 | `chore_*`   | chore         | 杂项和配置信息维护                                          |
 
 - 当一个分支被合并后，其会被重命名：如 `tom/feature_eat_watermelon` 分支被合并后，它会被重命名为 `zarchive/tom/feature_eat_watermelon`，以表示此分支已经完成其使命，不应再被启用。
+
+## 打包和发布
+
+本项目使用 [rattler-build](https://rattler-build.prefix.dev/latest/) 作为 Conda 包分发的主要构建工具。打包配置位于 `.conda/` 目录中。
+
+### 配方格式（V1）
+
+本项目使用 V1 配方格式（`recipe.yaml`），这是由 [CEP-13](https://github.com/conda/ceps/blob/main/cep-0013.md) 定义的现代格式。关键语法规范：
+
+- **上下文变量（Context Variables）**：在 `context` 块中定义变量，以便在整个配方中重复使用。
+- **Jinja2 模板**：使用 `${{ variable }}` 语法进行变量插值。
+- **环境变量**：使用 `env.get("VAR_NAME", default="value")` 访问外部环境变量。
+
+示例：
+```yaml
+context:
+  name: "isobase"
+  version: ${{ env.get("BUILD_VERSION", default="0.0.0") }}
+  python_min: "3.12"
+```
+
+### 环境变量访问
+
+**正确语法（V1 配方）**：
+```yaml
+version: ${{ env.get("BUILD_VERSION", default="0.0.0") }}
+```
+
+**错误语法（Python 风格，**不起作用**）**：
+```yaml
+version: ${{ environ.get("BUILD_VERSION", default="0.0.0") }}  # 错误！
+```
+
+`env.get()` 函数是在 rattler-build 配方中访问环境变量的官方方法。`environ` 命名空间在 rattler-build 的 Jinja2 上下文中不存在。
+
+### 构建脚本语法
+
+`build.script` 字段支持使用 YAML 的 `|`（字面块标量）的多行 shell 脚本：
+
+```yaml
+build:
+  noarch: python
+  number: 0
+  script: |
+    echo "Building version: ${{ version }}"
+    python -m pip install . -vv
+```
+
+### 源代码规范
+
+对于本地开发构建，使用 `path`：
+```yaml
+source:
+  path: ..
+```
+
+对于 conda-forge 提交，使用带有 SHA256 校验和的 `url`：
+```yaml
+source:
+  url: https://github.com/landspark/IsoBase/archive/refs/tags/${{ version }}.tar.gz
+  sha256: <checksum>
+```
+
+### GitHub Actions 集成
+
+CI/CD 工作流通过环境变量将版本传递给 rattler-build：
+
+```yaml
+- name: Build Conda Package
+  env:
+    BUILD_VERSION: ${{ env.VERSION }}
+  run: |
+    rattler-build build \
+      --recipe .conda/recipe.yaml \
+      --output-dir output_bld
+```
+
+这允许配方在构建时从环境动态读取版本，实现自动化版本管理，无需手动编辑配方。
+
+### 参考资料
+
+- [Rattler-build 文档](https://rattler-build.prefix.dev/latest/)
+- [CEP-13：配方格式规范](https://github.com/conda/ceps/blob/main/cep-0013.md)
+- [Conda-forge 维护者指南](https://conda-forge.org/docs/maintainer/)
