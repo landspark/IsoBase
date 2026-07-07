@@ -1,6 +1,6 @@
 context:
   name: "isobase"
-  version: ${{ environ.get('BUILD_VERSION', '0.0.0') }}
+  version: "0.0.0"
   python_min: "3.12"
 
 package:
@@ -8,16 +8,14 @@ package:
   version: ${{ version }}
 
 source:
-  # For local/GitHub Actions builds, use local source path:
   path: ..
-  # For conda-forge submission, use URL + SHA256 instead:
-  # url: https://github.com/landspark/IsoBase/archive/refs/tags/${{ version }}.tar.gz
-  # sha256: 0000000000000000000000000000000000000000000000000000000000000000
 
 build:
   noarch: python
   number: 0
-  script: python -m pip install . -vv
+  script:
+    - echo "Building version: ${{ version }}"
+    - python -m pip install . -vv
 
 requirements:
   host:
