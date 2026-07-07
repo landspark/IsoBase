@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to build (e.g., 0.1.5)'
+        description: 'Version to build (e.g., 0.1.6)'
         required: true
         type: string
       upload:
@@ -25,15 +25,13 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # Fetch full history and tags
+        fetch-depth: 0
 
     - name: Install rattler-build
       run: |
-        # Download and install rattler-build binary directly from GitHub Releases
         curl -L -o rattler-build.tar.gz \
           https://github.com/prefix-dev/rattler-build/releases/latest/download/rattler-build-x86_64-unknown-linux-musl.tar.gz
         tar -xzf rattler-build.tar.gz
-        # Find the binary (it's inside a subdirectory after extraction)
         RATTLER_BIN=$(find . -name 'rattler-build' -type f -executable | head -n 1)
         if [ -z "$RATTLER_BIN" ]; then
           echo "Error: rattler-build binary not found after extraction"
@@ -44,24 +42,33 @@ jobs:
         sudo mv "$RATTLER_BIN" /usr/local/bin/rattler-build
         rattler-build --version
 
-    - name: Setup Version Tag
+    - name: Determine Version and Create Variant Config
       run: |
         if [ "${{ github.event_name }}" = "release" ]; then
-          echo "Release trigger: GIT_DESCRIBE_TAG will use the release tag automatically"
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG_NAME#v}
+          echo "Release trigger: using version from tag: $VERSION"
         else
-          # Manual trigger: create a temporary tag for GIT_DESCRIBE_TAG
           VERSION="${{ inputs.version }}"
-          echo "Manual trigger: creating temporary tag $VERSION"
-          git tag "$VERSION"
+          echo "Manual trigger: using input version: $VERSION"
         fi
+
+        # Create variant config file to pass version to recipe
+        cat > variant_config.yaml << EOF
+        version:
+          - $VERSION
+        EOF
+
+        echo "Created variant_config.yaml:"
+        cat variant_config.yaml
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
 
     - name: Build Conda Package
       run: |
-        # Build the conda package using rattler-build
-        # GIT_DESCRIBE_TAG will automatically get the version from the git tag
         rattler-build build \
           --recipe .conda/recipe.yaml \
-          --output-dir output_bld
+          --output-dir output_bld \
+          --variant-config variant_config.yaml
         echo "Build completed. Artifacts:"
         ls -R output_bld
 
