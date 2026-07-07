@@ -12,8 +12,15 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up rattler-build
-      uses: prefix-dev/setup-rattler@v3
+    - name: Install rattler-build
+      run: |
+        # Download and install rattler-build binary directly from GitHub Releases
+        curl -L -o rattler-build.tar.gz \
+          https://github.com/prefix-dev/rattler-build/releases/latest/download/rattler-build-x86_64-unknown-linux-musl.tar.gz
+        tar -xzf rattler-build.tar.gz
+        chmod +x rattler-build
+        mv rattler-build /usr/local/bin/
+        rattler-build --version
 
     - name: Extract Tag Version
       id: extract_tag
@@ -25,8 +32,8 @@ jobs:
 
     - name: Build Conda Package
       run: |
-        # Override the version variable in recipe.yaml using rattler-build's variant feature
-        rattler-build build --recipe .conda/recipe.yaml --output-dir output_bld --variant-config <(echo "version: [\"${{ env.VERSION }}\"]")
+        # Build the conda package using rattler-build
+        rattler-build build --recipe .conda/recipe.yaml --output-dir output_bld
         echo "Build completed. Artifacts:"
         ls -R output_bld
 
