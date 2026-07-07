@@ -42,21 +42,23 @@ jobs:
           sudo mv "$RATTLER_BIN" /usr/local/bin/rattler-build
           rattler-build --version
 
-      - name: Setup Version Tag
+      - name: Determine Version
         run: |
           if [ "${{ github.event_name }}" = "release" ]; then
-            echo "Release trigger: GIT_DESCRIBE_TAG will use the release tag automatically"
+            TAG_NAME=${GITHUB_REF#refs/tags/}
+            VERSION=${TAG_NAME#v}
+            echo "Release trigger: using version from tag: $VERSION"
           else
-            # Manual trigger: create a temporary tag for GIT_DESCRIBE_TAG
             VERSION="${{ inputs.version }}"
-            echo "Manual trigger: creating temporary tag $VERSION"
-            git tag "$VERSION"
+            echo "Manual trigger: using input version: $VERSION"
           fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Build Conda Package
+        env:
+          BUILD_VERSION: ${{ env.VERSION }}
         run: |
-          # Build the conda package using rattler-build
-          # GIT_DESCRIBE_TAG will automatically get the version from the git tag
+          echo "Building with version: $BUILD_VERSION"
           rattler-build build \
             --recipe .conda/recipe.yaml \
             --output-dir output_bld
