@@ -1,6 +1,6 @@
 context:
   name: "isobase"
-  version: ${{ GIT_DESCRIBE_TAG }}
+  version: "0.0.0"  # Placeholder, will be overridden by --variant
   python_min: "3.12"
 
 package:
