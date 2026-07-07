@@ -44,29 +44,24 @@ jobs:
         sudo mv "$RATTLER_BIN" /usr/local/bin/rattler-build
         rattler-build --version
 
-    - name: Determine Version
-      id: determine_version
+    - name: Setup Version Tag
       run: |
         if [ "${{ github.event_name }}" = "release" ]; then
-          # Extract version from release tag (strip 'v' prefix)
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-          VERSION=${TAG_NAME#v}
-          echo "Release trigger: using version from tag: $VERSION"
+          echo "Release trigger: GIT_DESCRIBE_TAG will use the release tag automatically"
         else
-          # Use manually input version
+          # Manual trigger: create a temporary tag for GIT_DESCRIBE_TAG
           VERSION="${{ inputs.version }}"
-          echo "Manual trigger: using input version: $VERSION"
+          echo "Manual trigger: creating temporary tag $VERSION"
+          git tag "$VERSION"
         fi
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "VERSION=$VERSION" >> $GITHUB_ENV
 
     - name: Build Conda Package
       run: |
-        # Build the conda package using rattler-build with explicit version
+        # Build the conda package using rattler-build
+        # GIT_DESCRIBE_TAG will automatically get the version from the git tag
         rattler-build build \
           --recipe .conda/recipe.yaml \
-          --output-dir output_bld \
-          --variant "version=${{ steps.determine_version.outputs.version }}"
+          --output-dir output_bld
         echo "Build completed. Artifacts:"
         ls -R output_bld
 
